@@ -1,0 +1,46 @@
+problem 2:
+#include<iostream>
+#include<cstdio>
+#include<algorithm>
+#define inf 0x3f3f3f3f
+#define _CRT_SECURE_NO_WARNINGS
+#pragma warning (disable: 4996)
+
+using namespace std;
+int  p[10010];
+int  r[10010];
+int  s[10010];
+int n;
+
+int bottom_up_cut_rod(int p[], int n)
+{
+ for (int i = 0; i <= n; i++)    r[i] = 0;
+ int q;
+ for (int j = 1; j <= n; j++)
+ {
+  q = -inf;
+  for (int i = 1; i <= j; i++)
+  {
+   if (q<p[i] + r[j - i])
+   {
+    q = p[i] + r[j - i];
+    s[j] = i;
+   }
+  }
+  r[j] = q;
+ }
+ return r[n];
+}
+
+int main()
+{
+ int num;
+ scanf("%d", &num);
+ for (int i = 1; i <= num; i++)    scanf("%d", &p[i]);
+ scanf("%d", &n);
+ if(n>=0)
+ {
+  printf("%d", bottom_up_cut_rod(p, n));
+ }
+ return 0;
+}
