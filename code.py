@@ -43,7 +43,7 @@ print('长度为{}的lambda奇数数组: {}'.format(len_, how_long_jssz(len_)))
 
 
 print('\n')
-print('精度保留5位开方/开根号')
+print('精度保留5位开方/开根号/求平方根')
 def sqart_(x):
 	if x == 0:
 		return x
@@ -54,8 +54,31 @@ def sqart_(x):
 			break
 		res = temp
 	return round(res, 5)
-print('sqart_(5): {}'.format(sqart_(5)))
-
+print('sqart_(5): {}'.format(sqart_(8192)))
+# 二分
+def mySqrt_half(x):
+    if x <= 1:
+        return x
+    l, r = 0, x
+    while True:
+        mid = round((r+l)/2)
+        if mid**2 <= x < (mid+1)**2:
+            break
+        elif mid**2 < x:
+            l=mid
+        else:
+            r=mid
+    return mid
+# 牛顿法 
+def mySqrt_niu(x):
+    if x <= 1:
+        return x
+    x0 = x
+    while(x0**2 - x) / (2*x0) > 1e-6:
+        x0 = x0 - (x0**2 - x) / (2*x0)
+    return x0
+print('二分求平方根: ', mySqrt_half(8192))
+print('牛顿求平方根: ', mySqrt_niu(8192))
 
 print('\n')
 print('马赛克算法: 方块mask, 毛边mask')
@@ -201,7 +224,6 @@ def histogram(im):
 # histogram(im)
 print('\n')
 
-# 2023.01.31shuati!
 # 最大正方形 leetcode221
 def maximalSquare(matrix):
     if not matrix or not matrix[0]:
@@ -235,8 +257,83 @@ def longestCommonSubsequence(text1, text2):
 t1, t2 = "abcde", "ace"
 print('公共子序列最长值:', longestCommonSubsequence(t1, t2))
 
+# 最短公共超序列
+def shortestCommonSupersequence(str1, str2):
+    l1,l2 = len(str1), len(str2)
+    if l1<l2:
+        str1, str2 = str2, str1 
+        l1,l2 = l2,l1
+    # 先找最长公共串, 再把没有的加上
+    dp2 = ['']*(l2+1)
+    dp = ['']*(l2+1)
+    for ch in str1:
+        for i in range(l2):
+            if str2[i] == ch:
+                dp2[i+1]=dp[i]+ch 
+            else:
+                dp2[i+1] = dp2[i] if len(dp2[i]) > len(dp[i + 1]) else dp[i + 1]
+        dp, dp2 = dp2, dp
+    lcs = dp[-1]
+    if not lcs:  # ==0
+        return str1+str2
+    res = ''
+    i,j,k = 0,0,0
+    while k < len(lcs):
+        while str1[i] != lcs[k]:
+            res += str1[i]
+            i += 1
+        while str2[j] != lcs[k]:
+            res += str2[j]
+            j += 1
+        res += lcs[k]
+        k += 1
+        i+=1
+        j+=1
+    res += str1[i:]+str2[j:]
+    return res 
+str1, str2 = "abac", "cab"
+print('最短的公共超序列, 含s12所有字符且顺序一致: ', shortestCommonSupersequence(str1, str2))
 
 ############################################################
+# 有序矩阵第k小  行列都有序
+def kthSmallest(matrix, k):
+    m, n = len(matrix), len(matrix[0])
+    lo,hi = matrix[0][0], matrix[-1][-1]  
+    while lo<=hi:
+        mid = (lo+hi)//2  # 数值上做二分 
+        i,j=m-1, 0   # 左下角开始找  
+        count = 0
+        while i>=0 and j<n:
+            if matrix[i][j]<=mid:
+                count += (i+1)  # 这一列上面所有的数都是比mid小
+                j += 1  # 右移
+            else:
+                i -= 1
+        if count < k:   # mid选小了
+            lo = mid+1
+        else:
+            hi = mid-1
+    return lo
+matrix, k = [[-5]], 1   # [[1,5,9],[10,11,13],[12,13,15]], 8
+print('有序矩阵第k小: ', kthSmallest(matrix, k))
+
+
+# 数组 除自身外的数组乘积 
+# 左右遍历思想 维护left right 值 
+def productExceptSelf(nums):
+    left,right = 1,1
+    l = len(nums)
+    res = [0]*l
+    for i in range(l):
+        res[i] = left   # 现在的res存放的是: 每个位置上元素，其左边需要乘的值
+        left *= nums[i]    # left init=1  第一个值的左边乘1啊 没问题的
+    for j in range(l-1,-1,-1):
+        res[j] *= right   # 这里res开始依次把每个位置上元素，其右边需要乘的值乘上
+        # 所以是*=right    right init=1，最后一个值右边可不就是乘1嘛
+        right *= nums[j]
+    return res
+print('除自身外的数组乘积: ', productExceptSelf([1,2,3,4]))
+
 # 哈希表字典, 前缀和, 滑动窗
 # 和等于 k 的最长子数组长度
 # dict字典哈希表, 前缀和, 滑动窗
@@ -353,6 +450,19 @@ def minSwaps(data):
 data = [1,0,1,0,1,0,0,1,1,0,1]
 print('最少交换次数来组合所有的 1', data, minSwaps(data))
 
+# 翻转1次, 0变1使得连续1的长度最长
+def findMaxConsecutiveOnes(nums):
+    res, pre_zero, cnt= 0,0,0
+    for num in nums:
+        cnt += 1
+        if num == 0:
+            pre_zero = cnt
+            cnt = 0
+        res = max(res, pre_zero+cnt)
+    return res 
+nums = [1,0,1,1,0,1] # [1,0,1,1,0]
+print('翻转一次0变1使得连续1的个数最大: ', findMaxConsecutiveOnes(nums))
+
 #  0,1个数相同的子数组,的长度
 # 前缀和, 哈希表
 def findMaxLength(nums):
@@ -368,6 +478,41 @@ def findMaxLength(nums):
         else:
             pre_sum[sum_] = i
     return ans 
+
+# 值和下标之差都在给定的范围内 abs(nums[i] - nums[j]) <= t, abs(i - j) <= k
+def containsNearbyAlmostDuplicate(nums, k, t):
+    # 桶排序
+    bucket = {}
+    for i in range(len(nums)):
+        b = nums[i]//(t+1) # b是桶的index
+        if b in bucket: return True 
+        if b-1 in bucket and abs(bucket[b-1]-nums[i])<=t: return True
+        if b+1 in bucket and abs(bucket[b+1]-nums[i])<=t: return True
+        bucket[b] = nums[i]
+        if i >= k:  # i>=k开始才可能满足ij相差k
+            bucket.pop(nums[i-k]//(t+1))
+    return False 
+nums,k,t = [1,5,9,1,5,9], 2,3
+print('桶排序思路做: ', containsNearbyAlmostDuplicate(nums, k, t))
+
+# 摇摆序列 摆动序列 数组
+# 数组内元素, 增减增减依次
+def wiggleMaxLength(nums):
+    n = len(nums)
+    if n <= 1:
+        return n 
+    pre_ord = -1 # 默认是先升后降, so初始化的ord为-1先
+    res = 1
+    for i in range(1, n):
+        if nums[i] == nums[i-1]:
+            continue
+        cur_ord = 1 if nums[i] > nums[i-1] else 0 
+        if cur_ord != pre_ord: # 出现+1-1摆动
+            res += 1
+        pre_ord = cur_ord  # 更新ord状态 
+    return res
+nums = [1,2,3,4,5,6,7,8,9]
+print('摆动数组, 摆动序列: ', wiggleMaxLength(nums))
 
 # 和>=target的最短连续子数组
 # 也是滑动窗思想, ij作为窗的左右边. j用for循环遍历完数组, 当sum超过了, i则也往右锁减少窗长度
@@ -523,8 +668,72 @@ def longestConsecutive(nums):
         # else: 
         #     # 数组重复的num直接不处理跳过
     return mmax
-nums = [0,3,7,2,5,8,4,6,0,1] # [100,4,200,1,3,2]
+nums = [100,4,200,1,3,2]
 print('数组中数值连续, index无要求的, 最长连续值: ', longestConsecutive(nums))
+
+def lengthOfLIS(nums):
+    if not nums:
+        return 0
+    l = len(nums)
+    dp = [1]*l
+    res = 1
+    for i in range(l):
+        for j in range(i):  # 注意是i
+            if dp[j]+1>dp[i] and nums[i]>nums[j]:  # 状态转移方程
+                dp[i] = dp[j]+1
+        res = max(res, dp[i])   # 每个index-i更新一个res最大值
+    return res
+nums = [10,9,2,5,3,7,101,18]
+# [2,3,7,101]
+print('最长递增数组的长度, index不连续, 数值递增 p就好: ', lengthOfLIS(nums))
+# 最长递增数组的 个数 
+def findNumberOfLIS(nums):
+    l = len(nums)
+    dp = [1]*l
+    con = [1]*l
+    maxlen = 1
+    res = 0
+    for i in range(l):
+        for j in range(i):
+            if nums[i] > nums[j]:
+                if dp[j]+1 == dp[i]:
+                    con[i] += con[j]
+                if dp[j]+1>dp[i]:  # 说明找到了更长的最长串 con得重置了
+                    dp[i] = dp[j]+1
+                    con[i]=con[j]
+        maxlen = maxlen if maxlen > dp[i] else dp[i] # 每个i-index更新
+    for i in range(l):
+        if dp[i] == maxlen:
+            res += con[i]
+    return res
+nums = [2,2,2,2,2] # [1,3,5,4,7]
+print('最长递增数组, index不连续的, 个数: ', findNumberOfLIS(nums))
+
+# 要求增序数组且index连续
+a = [10, 80, 6, 3, 4, 7, 1, 5, 11, 2, 12, 30, 31]
+concoll = [0]
+for i in range(len(a) - 1):
+    if a[i] < a[i+1]:
+        count = concoll[-1] + 1
+        concoll.append(count)
+    else:
+        concoll.append(1)
+print('递增数组且index连续, 的长度: ', max(concoll))
+
+# dp  最长字符串链
+# 不改变各个word内的字符相对顺序, 每个word可加1个字符, 看看是否可得到后面的word
+def longestStrChain(words):
+    # 不改变字符相对顺序, 只增加1个字符使word相等
+    dp = {}
+    for word in sorted(words, key=len): # 按照长度递增顺序排序
+        # 依次删除word中的各位字符, 在dp中做累加计数
+        dp[word] = max(dp.get(word[:i]+word[i+1:], 0)+1 for i in range(len(word)))
+    return max(dp.values())
+words = ["abcd","dbqca"] #  ["xbc","pcxbcf","xb","cxbc","pcxbc"]
+print('最长字符串链, 前面word加一个字符得到后面的word: ', longestStrChain(words))
+
+# 
+
 
 # 四数相加 4数相加  哈希表
 # nums1,2,3,4各取一个数使得4个数之和为0. 则ab先组合出所有可能和的dict, 然后再遍历cd, 出现-(a+b)值则res加上value.
@@ -555,7 +764,54 @@ def findDisappearedNumbers(nums):
 nums = [1,1] # [4,3,2,7,8,2,3,1]
 print('长度为n, 数值范围1-n. 求消失的数字: ', findDisappearedNumbers(nums))
 
-# 贪心算法, 排序   用最少数量的箭引爆气球
+# 贪心 哈希表
+# 形成字符串的最短路径
+def shortestWay(source, target):
+    i, cnt = 0, 0
+    ll = len(target)
+    while i < ll:
+        tmp = i 
+        for s_ in source:
+            if i < ll and s_ == target[i]: # 注意处理target的边界
+                i += 1
+        if tmp!=i:  
+            cnt += 1
+        else:   # i没变化,即source走完一遍i都没动, t有s没有的字符
+            return -1
+    return cnt 
+print('形成target的最短source路径: ', shortestWay('xyz', 'xzyxz'))
+
+# 贪心算法, 排序   
+# 最长数对链 
+def findLongestChain(pairs):
+    # 按照右边界排序
+    pairs = sorted(pairs, key=lambda x: x[1], reverse=False)
+    res = 1
+    tmp = pairs[0][1]
+    for i in range(1, len(pairs)):
+        if pairs[i][0] > tmp:  # 后面的左边界大于前面的右边界
+            res += 1
+            tmp = pairs[i][1]
+    return res 
+pairs = [[1,2],[7,8],[4,5]]
+print('数对链, 后面大于前面, ', findLongestChain(pairs))
+
+# 最大整除子集  输出子数组集 nums[i]%nums[j]==0 or nums[j]%nums[i]==0
+def largestDivisibleSubset(nums):
+    if not nums or len(nums)==1:
+        return nums
+    lens = len(nums)
+    nums.sort()  # 排序
+    dp = [[i] for i in nums]  # 初始化每个子数组包含各个num单个元素
+    for i in range(1, lens):
+        for j in range(i-1, -1, -1):  # j~i
+            if nums[i]%nums[j]==0:
+                dp[i] = max(dp[j]+[nums[i]], dp[i], key=len)
+    return max(dp,key=len)
+nums = [1,2,4,8]
+print('最大整除子集: ', largestDivisibleSubset(nums))
+
+# 用最少数量的箭引爆气球
 # 根据右边界把会重合的子数组合并起来, 
 def findMinArrowShots(points):
     lens = len(points)
@@ -573,6 +829,79 @@ def findMinArrowShots(points):
     return res  
 points = [[10,16],[2,8],[1,6],[7,12]]
 print('最少射箭次数: ', findMinArrowShots(points))
+
+# 戳气球 可获得硬币
+'''
+输入: nums = [3,1,5,8]
+输出: 167
+解释: 
+nums = [3,1,5,8] --> [3,5,8] --> [3,8] --> [8] --> []
+coins =  3*1*5    +   3*5*8   +  1*3*8  + 1*8*1 = 167
+'''
+def maxCoins(nums):
+    # dp[i][j]: (i,j)开区间内的最大值, k是(i,j)内被戳破的最后球
+    # 最后戳k, 则可获得的值: nums[i]*nums[k]*nums[j], ikj相连,中间无球了都已破
+    # i, j代表左右边界, k代表(i,j)内戳球顺序可带来的最大值
+    n = len(nums)
+    dp = [[0]*(n+2) for _ in range(n+2)]
+    nums = [1]+nums+[1]
+    # 0~n-1范围是 区间起点
+    for i in range(n-1, -1, -1):
+        # i+2是循环起点, 因为j表示右边界, 得在i的基础上+2
+        for j in range(i+2, n+2):
+            # k是ij中间被戳的球, so循环起点是i+1,终点是j
+            for k in range(i+1, j):
+                # dp[i][k]+dp[k][j]分别是k两边的最大值, 然后附加k戳破能得到的最大值
+                dp[i][j] = max(dp[i][j], dp[i][k]+dp[k][j]+nums[i]*nums[k]*nums[j])
+    # 返回(0~n+1)内的最大值  0,n+1都是开区间无法被真的戳破.
+    return dp[0][n+1]  # (0,n+1位置都是后面补上去的1啊~)
+print('戳气球', maxCoins([3,1,5,8]))
+
+# 删除回文子数组 直到数组空
+def minimumMoves(arr):
+    n = len(arr)
+    f = [[n] * n for i in range(n)]
+    g = [None] * n 
+    for i, x in enumerate(arr):
+        f[i][i] = 1
+        # 预处理找到 [i, n) 范围内所有与 a[i] 相等的值的下标，减少无效遍历
+        g[i] = [j for j in range(i, n) if x == arr[j]]
+    for i in range(n - 2, -1, -1):
+        for j in range(i + 1, n):
+            if i == j - 1:
+                f[i][j] = int(arr[i] != arr[j]) + 1
+            else:
+                if arr[i] == arr[j]:
+                    f[i][j] = f[i + 1][j - 1]
+                for k in g[i]:
+                    if k >= j:
+                        break
+                    f[i][j] = min(f[i][j], f[i][k] + f[k + 1][j])
+    return f[0][n - 1]
+
+# 合并区间
+def merge(intervals):
+    if len(intervals) == 1:   
+        return intervals     
+    begs = []
+    ends = []
+    for bi in intervals:
+        begs.append(bi[0])
+        ends.append(bi[1])
+    begs.sort()
+    ends.sort()  
+    l = len(begs)
+    tmp1 = 0
+    res = []
+    for i in range(l-1):
+        if begs[i+1] > ends[i]:   
+            res.append([begs[tmp1], ends[i]])
+            tmp1 = i+1   
+        if i == l-2:
+            res.append([begs[tmp1], ends[-1]])
+    return res
+intervals = [[1,3],[2,6],[8,10],[15,18]]
+print('合并区间: ', merge(intervals))
 
 # 安排会议, 双指针, 数组, 排序
 # 左边界排序  [其实不用限制左边界排序, 因为会议时间都满足e>s, so直接sorted即可~]
@@ -595,6 +924,24 @@ def get_meeting(slots1, slots2, duration):
 slots1, slots2, duration  = [[10,50],[60,120],[140,210]], [[0,15],[60,70]], 12   
 print('安排会议起始时间: ', get_meeting(slots1, slots2, duration))      
 
+# 会议室  需要多少个会议室
+def minMeetingRooms(intervals):
+    mmax = 0
+    m0, m1 = max([a[0] for a in intervals]), max([a[1] for a in intervals])
+    mmax = max(m0, m1)
+    diff = [0]*(mmax+1)
+    # 上下车, 起点+1, 终点-1
+    for inter in intervals:
+        diff[inter[0]] += 1
+        diff[inter[1]] -= 1
+    ans, cnt = 0,0
+    for i in range(mmax+1):
+        cnt += diff[i]
+        ans = max(ans, cnt)
+    return ans 
+intervals = [[0,30],[5,10],[15,20]]
+print('至少安排多少个会议室: ', minMeetingRooms(intervals))
+
 # 最小时差  : 数组中任意两时间差最小, 小时:分钟 "HH:MM"
 def findMinDifference(timePoints):
     # 小时:分钟 "HH:MM" 24*60种不同的时间
@@ -608,6 +955,7 @@ timePoints = ["23:59","00:00"]
 print('最小时差: ', findMinDifference(timePoints))
 
 # 两个行程编码数组的积  双指针
+# [[1,3],[2,1],[3,2]]: [1,1,1,2,3,3]  每个子数组[value,count]
 def findRLEArray(encoded1, encoded2):
     ans = []
     i, j = 0, 0
@@ -645,7 +993,6 @@ def trap(height):
     return  ans - len(height)*h1
 height = [0,1,0,2,1,0,1,3,2,1,2,1]
 print('接雨水: ', trap(height))
-
 
 # 字符串 
 # 字符串排序, 一个很新很牛的做法. 可以把字符相同但组合不同的所有strings转化为一种string, 则可以比较是否满足变位词了. 
@@ -732,8 +1079,30 @@ def findAnagrams(s2, s1):
 s1, s2 = 'abc', "cbaebabacd"
 print('所有变位词: ', findAnagrams(s2, s1))        
 
+# 最长重复连续子串  非暴力方法
+# 'aabcaabdaab': 'aab'
+def search(L,n,S):
+    seen = set()
+    for start in range(0, n - L + 1):
+        tmp = S[start:start + L]
+        if tmp in seen:
+            return start
+        seen.add(tmp)
+    return -1
+def longestRepeatingSubstring(S):
+    n = len(S)
+    left, right = 1, n
+    while left <= right:
+        mid = left + (right - left) // 2
+        if search(mid, n, S) != -1:
+            left = mid + 1
+        else:
+            right = mid - 1
+    return left - 1
+print('最长重复连续子串长度: ', longestRepeatingSubstring('aabcaabdaab'))   
+
 # 滑动窗: 一边不断r+1扩大窗, 一边遇到重复元素则不断右移左边界缩窗
-# 最长不重复连续子串  无重复最长子串
+# 连续子串  无重复最长子串
 def lengthOfLongestSubstring(nums):
     lens = len(nums)
     # 维护不定长滑动窗winds, 一边r不断往右扩大窗
@@ -778,7 +1147,6 @@ def minDistance(self, word1, word2):
         dp[0] = [i for i in range(n+1)]
         for i in range(m+1):
             dp[i][0] = i
-        
         for i in range(1, m+1):
             for j in range(1, n+1):
                 if word1[i-1] == word2[j-1]: # i-1,j-1一致
@@ -788,6 +1156,62 @@ def minDistance(self, word1, word2):
         return dp[-1][-1]
 
 # 字符串, 回文串
+# 回文子串个数  每个回文串都得是连续子字符串
+def countSubstrings(s):
+    ll = len(s)
+    count = 0
+    dp = [[0]*ll for i in range(ll)]
+    for i in range(ll-1, -1, -1):   # 这里注意i的取值是逆向的
+    # 因为后面要用dp[i+1][j-1]
+        for j in range(i, ll):
+            if s[i] == s[j] and (j-i <= 2 or dp[i+1][j-1]):
+                dp[i][j] = 1
+                count += 1
+    return count
+print('回文子串个数: ', countSubstrings('aaa'))
+
+# 分割回文串
+'''
+aab -> [['a','a','b'], ['aa','b']]
+'''
+def partition(s):
+    ll = len(s)
+    if not ll:
+        return [[]]
+    if ll==1:
+        return [[s]]
+    tmp = []
+    for i in range(1, ll+1):
+        left = s[:i]
+        right = s[i:]
+        if left == left[::-1]:  # 保证left部分已经回文
+            right = partition(right)
+            for j in range(len(right)):
+                tmp.append([left] + right[j])
+    return tmp
+print('把字符串拆分为可能的各个子回文数组, ', partition('aab'))
+
+# 分割回文串 需要的切割次数  最少回文分割
+'''
+s = "aab" 1次-> 'aa','b', 'a'0次, 'ab'1次->'a','b'
+'''
+def minCut(s):
+    n = len(s)
+    g = [[True] * n for _ in range(n)]  # 记录g[i][j]内的回文情况, 0or1
+    for i in range(n - 1, -1, -1):
+        for j in range(i + 1, n):
+            g[i][j] = (s[i] == s[j]) and g[i + 1][j - 1]
+    f = [float("inf")] * n
+    for i in range(n):
+        if g[0][i]:
+            f[i] = 0
+        else:
+            for j in range(i):
+                if g[j+1][i]:
+                    f[i] = min(f[i], f[j]+1)
+    return f[-1]
+print('分割回文串需要的次数: ', minCut('ab'))
+
 # 比较简单, 属于数学找规律. 字符串可以任意换顺序, 只要个数上满足回文要求即可
 def longestPalindrome(s):
     # 哈希表{char:value}
@@ -808,7 +1232,6 @@ def longestPalindrome(s):
 # 不可改变string的顺序, 找出最长的回文子串
 # dp[i][j]维护i~j内满足回文串的bool值, false or true
 def longestPalindrome(s):
-    # i: 0~j, j: 0~lens
     l = len(s)
     if not l:
         return s
@@ -816,7 +1239,7 @@ def longestPalindrome(s):
     res = ''
     dp = [[0]*l for i in range(l)]
     for j in range(l):
-        for i in range(j, -1, -1):
+        for i in range(j, -1, -1):   # i: 0~j, j: 0~lens
             if s[j]==s[i] and (j-i<2 or dp[i+1][j-1]):
                 # 当扫描到ij元素相等, 要么ij相邻(j-i<2)
                 # 要么dp[j+1][i-1]已经满足了==1是回文
@@ -828,6 +1251,35 @@ def longestPalindrome(s):
     return res 
 s = 'babad'
 print('最长回文串, dp实现: ', longestPalindrome(s))
+
+# 好的 最长回文串: 个数要是偶数, 且除中心两个元素,其他元素不能相等
+def longestPalindromeSubseq(s):
+    n = len(s)
+    dp = [[[0, '*'] for j in range(n)] for i in range(n)]
+    for i in range(n - 2, -1, -1):
+        for j in range(i + 1, n):
+            if s[i] == s[j] and s[i] != dp[i + 1][j - 1][1]:
+                dp[i][j][0] = dp[i + 1][j - 1][0] + 2
+                dp[i][j][1] = s[i]
+            else:
+                dp[i][j] = dp[i][j - 1] if dp[i][j - 1][0] > dp[i + 1][j][0] else dp[i + 1][j]
+    return dp[0][-1][0]
+print('好的回文串: ', longestPalindromeSubseq("dcbccacdb"))
+
+# 最多删除一个字符, 实现最长回文
+def longestPalindromeSubseq(s):
+    lens = len(s)
+    dp = [[0]*lens for _ in range(lens)]
+    for i in range(lens):
+        dp[i][i] = 1
+    for i in range(lens-1, -1, -1):
+        for j in range(i+1, lens):
+            if s[i]==s[j]:
+                dp[i][j] = dp[i+1][j-1]+2  # ij不相等
+            else:  # ij位置不相等, 则可能需要删除, 在i+1j,ij-1中选max
+                dp[i][j] = max(dp[i+1][j], dp[i][j-1])
+    return dp[0][-1]  # 起点index到终点index的最大值
+print('最多可删除一个字符, 实现最长回文: ', longestPalindromeSubseq('bbbab'))
 
 # 最多可删除一个字符, 实现回文. (不可改变字符顺序)
 # 递归做法
@@ -846,6 +1298,73 @@ def validPalindrome(s):
     return reverse_(i+1, j, s) or reverse_(i, j-1, s)
 s = 'abc'
 print('最多删除一个字符得到回文: ', validPalindrome(s))
+
+# 最多删除k个, 得到回文
+def isValidPalindrome(s):
+    # lens - 算出的最长回文
+    n = len(s)
+    dp = [[0] * (n + 1) for _ in range(n + 1)]
+    for i in range(1, n + 1):
+        for j in range(1, n + 1):
+            if s[i - 1] == s[n - j]:
+                dp[i][j] = dp[i - 1][j - 1] + 1
+            else:
+                dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
+    return k >= n - dp[n][n]
+print('删除k个是否可得到回文: ', isValidPalindrome('abbababa'))
+
+# 把球移出界的可能方式  每次上下左右四种走法
+def findPaths(m, n, N, i, j):  # m行n列,共可移N步,起点在(i,j)
+    dp = [{} for _ in range(N + 1)]   # 移动步数的dp, 字典存的是,当前位置和对应的可移除count
+    dp[0][(i, j)] = 1
+    dirs = [(0, 1), (0, -1), (1, 0), (-1, 0)]  
+    ans = 0
+    for step in range(1, N + 1):
+        for r, c in dp[step - 1]:  # 这里注意理解下, 有不同的(r,c)key,对应不同的count
+            count = dp[step - 1][(r, c)]
+            for dr, dc in dirs:
+                nr, nc = dr + r, dc + c
+                if nr >= m or nc >= n or nr < 0 or nc < 0:
+                    ans += count
+                    ans %= (10 ** 9 + 7)   #值太大做的一个取模处理
+                elif (nr, nc) in dp[step]:
+                    dp[step][(nr, nc)] += count
+                else:
+                    dp[step][(nr, nc)] = count
+    return ans
+m,n,N,i,j = 1,3,3,0,1# 2,2,2,0,0
+print('球移出界的可能情况: ', findPaths(m,n,N,i,j))
+
+# 复制
+'''
+输入: 3
+输出: 3
+最初, 只有一个字符 'A'
+第 1 步, 使用 Copy All 操作
+第 2 步, 使用 Paste 操作来获得 'AA'
+第 3 步, 使用 Paste 操作来获得 'AAA'
+'''
+def minSteps(n):
+    # 分解为m个数字相乘等于n, m个数字的和最小 
+    res = 0
+    for i in range(2, n+1):
+        while n%i == 0:
+            res += i 
+            n //= i 
+    return res 
+
+# 轰炸敌人  只有一个炸弹, 只能击杀在同一行同一列没被墙隔开的人 
+# W是墙 E是敌人 0是空位可放炸弹   (暴力搜索)
+def maxKilledEnemies(grid):
+    m, n = len(grid), len(grid[0])
+    dirs = [[-1,0],[1,0],[0,1],[0,-1]]  # 上下左右 
+    # @cache
+    def back(x,y,b):
+        if x<0 or x>=m or y<0 or y>=n or grid[x][y] == 'W': return 0
+        return (grid[x][y] == 'E')+back(dirs[b][0]+x,dirs[b][1]+y,b)
+    return max([sum(back(i,j,x) for x in range(4)) for i in range(m) for j in range(n) if grid[i][j] == '0']+[0])
+grid = [["W","W","W"],["0","0","0"],["E","E","E"]]  #  [["0","E","0","0"],["E","0","W","E"],["0","E","0","0"]]
+print('轰炸敌人: ', maxKilledEnemies(grid))
 
 # dp 回文字符串个数
 def countSubstrings(s):
@@ -947,11 +1466,34 @@ def minWindow(s, t):
 s, t= "ADOBECODEBANC", "ABC"
 print('最短的包含全部字符的长度: ', minWindow(s, t))
 
-
-a = {'s': 1, 'c': 2}
-b = {'c': 2}
-print(a['c'] == b['c'])
-
+# 最短的包含t中所有字符的s的子串, 得保留t中的字符顺序
+def minWindow(s,t):
+    if len(s) == len(t) and s == t:
+        return s
+    start, end = 0, len(s)
+    s_index = 0
+    t_index = 0
+    while s_index < len(s):
+        if s[s_index] == t[t_index]:
+            t_index += 1
+        if t_index == len(t):
+            right = s_index
+            t_index -= 1
+            while t_index >= 0:
+                if s[s_index] == t[t_index]:
+                    t_index -= 1
+                s_index -= 1
+            s_index += 1
+            if right - s_index < end - start:
+                start = s_index
+                end = right
+            t_index = 0
+        s_index += 1
+    if end - start == len(s):
+        return ""
+    else:
+        return s[start: end + 1]
+print('最短的包含t中所有字符的s的子串, 得保留t中的字符顺序', minWindow("abcdebdde", "bde"))
 
 
 
@@ -1041,6 +1583,47 @@ def singleNumber(nums):
 nums = [0,1,0,1,0,1,100]
 print('均出现三次只ta出现一次的数: {}'.format(singleNumber(nums)))
 
+# 乘积最大的连续子数组  数组有正有负 
+def maxProduct(nums):
+    # 负数偶数个, 则整个数组乘起来就是最值
+    # 负数为奇数个, 
+        # 1. 则从左边开始乘到最后一个负数为止, 有最值 
+        # 2. 同理从右边开始乘到最后一个负数也有一个最值, 
+    # so 比较这俩最值即可, 左右分别遍历一次, 维护max值即可
+    l = len(nums)
+    mmax = nums[0]
+    a = 1
+    for i in range(l):
+        a *= nums[i]
+        mmax = a if a > mmax else mmax
+        if nums[i] == 0:
+            a = 1   # 遇到0重新乘
+    a = 1
+    for j in range(l-1,-1,-1):
+        a *= nums[j]
+        mmax = mmax if mmax > a else a
+        if nums[j] == 0:
+            a = 1
+    return mmax
+nums = [-2,0,-1] # [2,3,-2,4]
+print('数组有正有负, 连续子数组的最大乘积: ', maxProduct(nums))
+
+# 数组有正有负 只把一个元素变成平方值 返回最大子数组和
+def maxSumAfterOperation(nums):
+    n = len(nums)
+    dp0 = nums[0]  # 没替换
+    dp1 = nums[0]*nums[0] # 替换了
+    res= 0
+    if n == 1:
+        return max(dp0, dp1)
+    for i in range(1, n):
+        dp1 = max(dp1+nums[i], dp0+nums[i]*nums[i], nums[i]*nums[i])
+        dp0 = max(dp0+nums[i], nums[i])
+        res = max(res, dp1) 
+    return res 
+nums = [1,-1,1,1,-1,-1,1] # [2,-1,-4,-3]
+print('一次平方处理返回最大子数组和, 有正有负: ', maxSumAfterOperation(nums))
+
 # 单词长度的最大乘积
 def maxProduct(words):
     # 字符转为二进制ord(), 与运算, 为0表示不同.
@@ -1093,6 +1676,29 @@ def fib(n):
     return fn[-1]
 print('斐波那契数: ', n, fib(n))
 
+# 最长斐波那契数列 长度 序列
+def lenLongestFibSubseq(arr):
+    res, lens = 0, len(arr)
+    dp = [[0] * lens for i in range(lens)]
+    for i, v in enumerate(arr):
+        lo, hi = 0, i - 1
+        while lo < hi:
+            if arr[lo] + arr[hi] < v:
+                lo += 1
+            elif arr[lo] + arr[hi] > v:
+                hi -= 1
+            else:  # arr[lo] + arr[hi] == v
+                if dp[lo][hi]:
+                    dp[hi][i] = dp[lo][hi] + 1  # v可以添加在a[lo][hi]构成的序列后
+                else:
+                    dp[hi][i] = 3 # lo+hi=i
+                res = max(dp[hi][i], res)
+                lo += 1
+                hi -= 1
+    return res
+nums = [1,3,7,11,12,14,18] # [1,2,3,4,5,6,7,8]
+print('最长斐波那契数列长度, ', lenLongestFibSubseq(nums))
+
 # 复杂版爬楼梯:
 '''
 输入: cost = [1,100,1,1,1,100,1,1,100,1]
@@ -1101,8 +1707,7 @@ print('斐波那契数: ', n, fib(n))
 '''
 def minCostClimbingStairs(cost):
     n = len(cost)
-    # dp: 爬到n位置需要的最小费用, 没算到达当前位置的费用.
-    dp = [0]*(n+1)
+    dp = [0]*(n+1)  # dp: 爬到n位置需要的最小费用, 没算到达当前位置的费用.
     for i in range(2, n+1):
         dp[i] = min(dp[i-2]+cost[i-2], dp[i-1] + cost[i-1])
     return dp[-1]
@@ -1110,12 +1715,10 @@ def minCostClimbingStairs(cost):
 # 左上角走到右下角, 可以有的多少种可能? 每步可右or下
 def uniquePaths(m, n):
     dp = [[0]*n for i in range(m)]
-
     # 初始化第一行和第一列, 都是1.
-    dp[0] = [1]*n
+    dp[0] = [1]*n  # 初始化第一行  走法都是1
     for j in range(m):
-        dp[j][0] = 1
-
+        dp[j][0] = 1  # 初始化第一列  走法都是1
     for i in range(1, m):
         for j in range(1, n):
             dp[i][j] = dp[i-1][j] + dp[i][j-1]
@@ -1127,19 +1730,13 @@ print('左上到右下, 向下或向右, 路径可能:', uniquePaths(m, n))
 def uniquePaths_(grid):
     m, n = len(grid), len(grid[0])
     dp = [[0]*n for i in range(m)]
-    # 这里需要给[0][0]位置1初始化, 后面会用到
-    dp[0][0] = 1
-
-    # 终点有障碍物, 则无法到达
-    if grid[-1][-1] == 1:
+    dp[0][0] = 1  # 这里需要给[0][0]位置1初始化, 后面会用到
+    if grid[-1][-1] == 1: # 终点有障碍物, 则无法到达
         return 0 
-
     for i in range(m):
         for j in range(n):
-            # i,j位置可达, 才需要更新此处的dp值
-            if grid[i][j] != 1:
-                # grid[i-1][j] != 1保证此处没堵住
-                if i >= 1 and grid[i-1][j] != 1:
+            if grid[i][j] != 1: # i,j位置可达, 才需要更新此处的dp值
+                if i >= 1 and grid[i-1][j] != 1: # grid[i-1][j] != 1保证此处没堵住
                     dp[i][j] += dp[i-1][j] 
                 if j >= 1 and grid[i][j-1] != 1:
                     dp[i][j] += dp[i][j-1]  
@@ -1147,7 +1744,7 @@ def uniquePaths_(grid):
 grid = [[0,0,0],[0,1,0],[0,0,0]]
 print('有障碍, 上到右下路径可能:', uniquePaths_(grid))
 
-# 左上到右下, 最小路径和值
+# 矩形最小路径和 左上到右下, 最小路径和值
 def minPathSum(grid):
     if not grid or not len(grid[0]):
         return
@@ -1159,15 +1756,75 @@ def minPathSum(grid):
         dp[i][0] = grid[i][0] + dp[i-1][0]
     for j in range(1, n):
         dp[0][j] = grid[0][j] + dp[0][j-1]
-
     for i in range(1,m):
         for j in range(1,n):
             dp[i][j] = min(dp[i-1][j], dp[i][j-1])+grid[i][j]
     return dp[-1][-1]
+grid = [[1,2,3],[4,5,6]] # [[1,3,1],[1,5,1],[4,2,1]]
+print('左上到右下最短距离和: ', minPathSum(grid)) 
 
-# 
+# 三角形中的最小路径和 
+def minimumTotal(triangle):
+    lens = len(triangle)  # 三角形的行数 
+    dp = triangle[-1]  # init位三角的最后一行数值
+    for i in range(lens-2, -1, -1):  # 由下往上走
+        for j in range(i+1):
+            dp[j] = min(dp[j], dp[j+1])+triangle[i][j]
+    return dp[0]
+print('由下往上走: ', minimumTotal([[-10]]))# [[2],[3,4],[6,5,7],[4,1,8,3]]))
+
+# 左上到右下, 过程中都会损失值(做减法), 求可抵达右下的最小左上值
+# 等价问题:  由下往上走求个最小值  
+def calculateMinimumHP(dungeon):
+    n, m = len(dungeon), len(dungeon[0])
+    dp = [[2**32-1]*(m+1) for _ in range(n+1)]
+    dp[n][m-1]=dp[n-1][m] = 1  # # 最后一步, 从左边or上边来, 值得至少为1
+    for i in range(n-1, -1, -1):   
+        for j in range(m-1, -1, -1):
+            mmin = min(dp[i][j+1], dp[i+1][j])
+            dp[i][j] = max(1, mmin-dungeon[i][j])
+    return dp[0][0]
 
 ############################################################
+# 分割数组的最大值 变相二分 
+# 一个数组分成m份, 使得各自数组的和的最大值 最小  min(max(sm1,sm2,sm3)) 
+# 尽量均分m个子数组 
+def splitArray(nums, m):
+    ll = len(nums)
+    if ll == m:
+        return max(nums)
+    lo, hi = max(nums), sum(nums)
+    while lo<hi:   # 数值二分 
+        mid = (lo+hi)//2   # 用来做各个区间的划分
+        tmp, cnt = 0,1
+        for num in nums:
+            tmp += num 
+            if tmp >mid:
+                tmp = num
+                cnt += 1
+        if cnt>m:  # mid选小了, 导致可分出的组数过多
+            lo = mid+1
+        else:
+            hi = mid 
+    return lo
+nums, m = [1,4,4], 3
+print('分割出m分子数组, 各个子数组的和 的最大值 最小, 尽量均分各个子数组: ', splitArray(nums, m))
+
+# 变相二分  吃香蕉
+# 求吃香蕉的速度k 
+def minEatingSpeed(piles, h):
+    left, right = 1, max(piles)
+    while left < right:
+        speed = (right+left)//2
+        if sum([(speed+p-1)//speed for p in piles]) <= h:
+            right = speed
+        else:
+            left = speed + 1
+    return left
+piles, h = [30,11,23,4,20], 6
+print('吃香蕉的速度: ', minEatingSpeed(piles, h))
+
+
 # 二分, 数组  两有序数组找中位数 二分: O(log(m+n))
 def findMedianSortedArrays(nums1, nums2):
     # 短数组在前, 长数组在后 
@@ -1194,6 +1851,76 @@ def findMedianSortedArrays(nums1, nums2):
     return (median1 + median2) / 2 if (m + n) % 2 == 0 else median1
 nums1, nums2 = [1,2], [3,4]
 print('两个正序数组的中位数: ', findMedianSortedArrays(nums1, nums2))
+
+# 有序数组, 将target插入点, 返回插入index
+def searchInsert(nums, target):
+    l, r = 0, len(nums)-1
+    while l<=r:
+        mid = (l+r)//2
+        if nums[mid] == target:
+            return mid 
+        elif nums[mid] < target:
+            l = mid+1
+        else: 
+            r = mid-1 
+    return l
+print('有序数组插入target的index: ', searchInsert([], 1))
+
+# 出现频率最高的k个数   堆 
+def topKFrequent(nums, k):
+    map_ = dict()
+    for num in nums:
+        map_[num] = map_.get(num, 0) + 1
+    res = []
+    map_ = sorted(map_.items(),key=lambda x:x[1],reverse=True)  
+    for i, each in enumerate(map_):
+        if i < k:
+            res.append(each[0])
+        else:
+            break
+    return res
+print('出现频率最高的k个数: ', topKFrequent([1,2,3,3,3,6,6,6,6], 2))
+
+# 山峰数组的顶部
+def fengIndex(nums):
+    l,r = 0, len(nums)-1
+    while l<=r:
+        mid = (l+r)//2
+        if nums[mid]<nums[mid-1]:  # mid选大了，数组已经在递减了
+            r = mid
+        elif nums[mid]<nums[mid+1]: # mid选小了，数组还在递增
+            l = mid
+        else:
+            return mid
+nums = [1,3,5,7,16,9,8,10]
+print(fengIndex(nums))
+# 峰值 就是该值大于左右相邻的元素即可
+class Solution(object):
+    def findPeakElement(self, nums):
+        l = len(nums)
+        l,r = 0,l-1
+        while l<r:
+            mid = (l+r)//2
+            if nums[mid]>nums[mid+1]:
+                r = mid
+            else:  # nums[mid]<=nums[mid+1]
+                l = mid+1
+        return l
+s = Solution()
+res = s.findPeakElement([1,2,1,3,5,6,4])
+
+# 二分 有序数组 排序数组 都出现2次仅一个出现一次 求这个数  log(n)
+def singleNonDuplicate(nums):
+    l, r = 0, len(nums)-1
+    while l<r:
+        mid = (l+r)//2
+        # mid偶数mid^1=mid+1; 奇数mid^1=mid-1
+        if nums[mid] == nums[mid^1]:
+            l = mid + 1
+        else:
+            r = mid 
+    return nums[l] 
+print('有序数组中仅出现一次的数: ', singleNonDuplicate([1,1,2,3,3])) 
 
 # 数组, 二分查找, 双指针(使用场景一般是,这个list是有序的了)
 # 升序数组,最左开始的第k个缺失的数 
@@ -1624,7 +2351,7 @@ def mergeKLists(lists):
         else:
             l2.next = mergeTwoLists(l1, l2.next)
             return l2 
-    # 实际就这一行代码
+    # main code
     return merge(0, lens-1)
 
 # 链表中的两数相加: 先把俩链表都反转, 然后对应位相加, 有进位则往next位放
@@ -1714,13 +2441,7 @@ def reorderList(head):
         cur.next = cur_forward_next
         cur = cur.next 
 
-# 链表排序 归并排序 
-def sortList(phead):
-    if not phead:
-        return None
-    else:
-        quicksort(phead,None) # head and end
-    return phead
+# 链表排序 归并排序
 # p1 p2 节点交换
 def swap(node1,node2):
     tem = node1.val
@@ -1738,8 +2459,13 @@ def quicksort(head,end):
             q = q.next
         swap(head,p)  # 这一步别漏了,把key_ind和之前的head互换 然后分两段使两段均有序
         quicksort(head,p)
-        quicksort(p.next,end)
-
+        quicksort(p.next,end) 
+def sortList(phead):
+    if not phead:
+        return None
+    else:
+        quicksort(phead,None) # head and end
+    return phead
 
 ###############################################################
 # 递归 栈 字符串
@@ -1789,7 +2515,48 @@ words = ['t'] # ["time", "me", "bell"]
 print('单词压缩编码: ', minimumLengthEncoding(words))
 
 ###############################################################
+# 最大的异或
+def max_not_or(nums):
+    res = 0
+    lens = len(nums)
+    for i in range(lens-1):
+        for j in range(i+1, lens):
+            res = res if res > nums[i]^nums[j] else nums[i]^nums[j]
+    return res 
+nums = [3,10,5,25,2,8] # [14,70,53,83,49,91,36,80,92,51,66,70]
+print('暴力最大的异或: ', max_not_or(nums))
+
 # 排序算法
+# 计算右侧小于当前元素的个数   归并排序
+def countSmaller(nums):
+    arr = []
+    res = [0]*len(nums)
+    for ind, num in enumerate(nums):
+        arr.append([ind, num])
+    def merge_sort(arr):
+        ll = len(arr)
+        if ll <= 1:
+            return arr
+        mid = (ll)//2
+        left = merge_sort(arr[:mid])
+        right = merge_sort(arr[mid:])
+        return merge(left, right)
+    def merge(left, right):
+        tmp = []
+        i,j=0,0
+        while i<len(left) or j<len(right):
+            if j==len(right) or i<len(left) and left[i][1]<=right[j][1]:
+                tmp.append(left[i])
+                res[left[i][0]] += j
+                i += 1
+            else:
+                tmp.append(right[j])
+                j += 1
+        return tmp 
+    merge_sort(arr)
+    return res 
+print('归并排序做, 右侧小于当前值的个数: ', countSmaller([5,2,6,1]))
+
 # 冒泡排序
 def maopao_sort(nums):
     # 最坏O(n^2) 最好:O(n)
@@ -1876,6 +2643,54 @@ def quick_sort(nums, left, right):
 nums = [5,3,3,7,1,8,1,4]
 print('快排: ', quick_sort(nums, 0, 7))
 
+# 分治  给字符串设置计算优先级 得到不同的结果 
+def diffWaysToCompute(expression):
+    res = []
+    ops = {'+': lambda x,y:x+y, '-': lambda x,y:x-y, '*': lambda x,y:x*y}
+    for ind in range(1, len(expression)-1):
+        if expression[ind] in ops:
+            for left in diffWaysToCompute(expression[:ind]):
+                for right in diffWaysToCompute(expression[ind+1:]):
+                    res.append(ops[expression[ind]](left, right))
+    if not res:
+        res.append(int(expression))
+    return res 
+expression = "2*3-4*5" # "2-1-1"
+print('字符串设置计算优先级, 得到不同结果, 结果可重复: ', diffWaysToCompute(expression))
+
+# 解数独  数字在一行内只出现一次, 数字在一列内只出现一次, 数字在一个九宫格(从0开始stride为3分布的宫格)内只出现一次
+def solveSudoku(board):
+    def dfs(pos):
+        nonlocal valid
+        if pos == len(spaces):
+            valid = True
+            return
+        i, j = spaces[pos]
+        for digit in range(9):
+            if line[i][digit] == column[j][digit] == block[i // 3][j // 3][digit] == False:
+                line[i][digit] = column[j][digit] = block[i // 3][j // 3][digit] = True
+                board[i][j] = str(digit + 1)
+                dfs(pos + 1)
+                line[i][digit] = column[j][digit] = block[i // 3][j // 3][digit] = False
+            if valid:
+                return
+    line = [[False] * 9 for _ in range(9)]
+    column = [[False] * 9 for _ in range(9)]
+    block = [[[False] * 9 for _a in range(3)] for _b in range(3)]
+    valid = False
+    spaces = list()
+    for i in range(9):
+        for j in range(9):
+            if board[i][j] == ".":
+                spaces.append((i, j))
+            else:
+                digit = int(board[i][j]) - 1
+                line[i][digit] = column[j][digit] = block[i // 3][j // 3][digit] = True
+    dfs(0)
+    return board
+board = [["5","3",".",".","7",".",".",".","."],["6",".",".","1","9","5",".",".","."],[".","9","8",".",".",".",".","6","."],["8",".",".",".","6",".",".",".","3"],["4",".",".","8",".","3",".",".","1"],["7",".",".",".","2",".",".",".","6"],[".","6",".",".",".",".","2","8","."],[".",".",".","4","1","9",".",".","5"],[".",".",".",".","8",".",".","7","9"]]
+print('解数独: ', solveSudoku(board))
+
 # N皇后 回溯 数组
 def solveNQueens(n):
     m = n*2-1  # 左上下,右上下两条对角线, 自己多算了一次so-1
@@ -1956,7 +2771,7 @@ print(roate_ni(M))
 def topk_(s, k):
     topk = s[:k] # 先initk个数
     # 遍历k~lens内的数, 遇到大于min(topk)的,就往前放
-    for i in range(k, len(s)):
+    for i in range(k, len(s)): 
         if s[i] > min(topk):  
             topk.remove(min(topk))
             topk.append(s[i])
@@ -2027,6 +2842,75 @@ print('天气温度, 更高的温度出现在几天后? ', dailyTemperatures(T))
 
 ############################################################
 # 深度优先dfs, 广度优先bfs
+# 矩阵中最长的1线段  类似五子棋的那种排布, 斜线也可
+def longestLine(M):
+        if not M or not M[0]:
+            return 0
+        m = len(M)
+        n = len(M[0])
+        dicts = [[1,0],[0,1],[-1,-1],[-1,1]]  # 这四个相邻!!! 
+        max_count = 0
+        for i in range(m):
+            for j in range(n):
+                if M[i][j] == 0:
+                    continue
+                for k in range(4):    
+                    count = 0   
+                    x,y = i,j
+                    while (x>=0 and y>=0 and x<m and y<n and M[x][y] == 1):
+                        x += dicts[k][0]
+                        y += dicts[k][1]   
+                        count += 1
+                    max_count = max(max_count, count) # 在search的四个方向内 
+        return max_count
+M = [[1,1,1,1],[0,1,1,0],[0,0,0,1]]
+print('矩阵中最长的1线段: ', longestLine(M))
+
+# 与目标颜色的最短距离
+'''
+输入:colors = [1,1,2,1,3,2,2,3,3], queries = [[1,3],[2,2],[6,1]]
+输出:[3,0,3]
+距离索引 1 最近的颜色 3 位于索引 4(距离为 3)
+距离索引 2 最近的颜色 2 就是它自己(距离为 0)
+距离索引 6 最近的颜色 1 位于索引 3(距离为 3)
+'''
+def shortestDistanceColor(colors, queries):
+    # 正逆序各一遍,得到每个index的最近123颜色距离. min(左,右)
+    n = len(colors)
+    dp = [[-1,-1,-1] for _ in range(n)]  # [n][3]
+    distance = [-1,-1,-1]
+    for i in range(n):
+        distance[colors[i]-1] = i 
+        dp[i][colors[i]-1] = 0
+        for idx, j in enumerate(distance):
+            if j != -1:
+                dp[i][idx] = abs(i-j)
+    for i in range(n-1, -1, -1):
+        distance[colors[i]-1] = i 
+        for idx, j in enumerate(distance):
+            if j != -1:
+                if dp[i][idx] != -1:
+                    dp[i][idx] = min(abs(i-j), dp[i][idx])
+                else:
+                    dp[i][idx] = abs(i-j)
+    res = []
+    for q in queries:
+        res.append(dp[q[0]][q[1]-1])
+    return res
+colors, queries = [1,1,2,1,3,2,2,3,3], [[1,3],[2,2],[6,1]]
+print('与目标颜色的最短距离: ', shortestDistanceColor(colors, queries))
+
+# 整数拆分: 拆分为几个正整数的和 使各元素相乘值最大
+def integerBreak(n):
+    dp = [0]*(n+1)
+    dp[1] = 1  # 整数i对应的最大乘积
+    for i in range(2, n+1):
+        for j in range(i-1, -1, -1):
+            dp[i]=max(dp[i], dp[j]*(i-j))
+            dp[i]=max(dp[i], j*(i-j))
+    return dp[-1]
+print('整数拆分, 得到最大乘积: ', integerBreak(2))
+
 # leetcode286 墙与门  
 def wallsAndGates(rooms):
     # bfs广度优先   0:门, -1:障碍物 INF:可通行
@@ -2050,6 +2934,26 @@ def wallsAndGates(rooms):
     return rooms
 rooms = [[2147483647,-1,0,2147483647],[2147483647,2147483647,2147483647,-1],[2147483647,-1,2147483647,-1],[0,-1,2147483647,2147483647]]
 print('门和墙: ', wallsAndGates(rooms))
+
+# 扫地机器人
+def cleanRoom(robot):
+    dirs = [-1, 0, 1, 0, -1]
+    visited = set()
+    def dfs(x, y, d):
+        robot.clean()
+        visited.add((x, y))
+        for i in range(4):
+            cur = (i + d) % 4
+            nxt_x, nxt_y = x + dirs[cur], y + dirs[cur+1]
+            if (nxt_x, nxt_y) not in visited and robot.move():
+                dfs(nxt_x, nxt_y, cur)
+                robot.turnRight()
+                robot.turnRight()
+                robot.move()
+                robot.turnLeft()
+                robot.turnLeft()
+            robot.turnRight()
+    dfs(robot.row, robot.col, 0)
 
 # 水流问题 dfs
 def shuiliu(heights):  # 大的值流向小的值
@@ -2102,6 +3006,28 @@ def getFactors(n):
     return dfs(n, 2) # 因子>1故从2开始
 print('因子的所有组合: ', getFactors(8))
 
+# 矩阵中的最长递增序列  上下左右可相连
+def longestIncreasingPath(matrix):
+    if not matrix or not matrix[0]:
+        return 0
+    m, n = len(matrix), len(matrix[0])
+    lookup = [[0]*n for _ in range(m)]
+    def dfs(i,j):  # 实现ij位置的最大增续值计算
+        if lookup[i][j] != 0:  # 已经遍历过
+            return lookup[i][j]
+        res = 1
+        for x, y in [[-1, 0], [1, 0], [0, 1], [0, -1]]: # 四个方向
+            tmp_i = x + i
+            tmp_j = y + j
+            if 0 <= tmp_i < m and 0 <= tmp_j < n and \
+                    matrix[tmp_i][tmp_j] > matrix[i][j]:  # 增序要求
+                res = max(res, 1 + dfs(tmp_i, tmp_j))
+        lookup[i][j] = max(res, lookup[i][j])
+        return lookup[i][j]
+    return max(dfs(i, j) for i in range(m) for j in range(n))
+matrix = [[3,4,5],[3,2,6],[2,2,1]] # [[9,9,4],[6,6,8],[2,1,1]]  
+print('矩阵中的最长递增路径: ', longestIncreasingPath(matrix))
+
 # 有向无环图所有可能路径   dfs: 一直走到底看看有无n-1这个value
 def allPathsSourceTarget(graph):
     # graph的含义: 0~n-1各个数值结点, 可走向的数值
@@ -2119,12 +3045,92 @@ def allPathsSourceTarget(graph):
 graph = [[4,3,1],[3,2,4],[3],[4],[]]
 print('有向无环图所有可能路径: ', allPathsSourceTarget(graph))
 
-# 树的独生节点
+# 根节点到叶节点的路径数字之和
+'''
+输入:root = [4,9,0,5,1]
+输出:1026
+解释:
+从根到叶子节点路径 4->9->5 代表数字 495
+从根到叶子节点路径 4->9->1 代表数字 491
+从根到叶子节点路径 4->0 代表数字 40
+数字总和 = 495 + 491 + 40 = 1026
+'''
+def sumNumbers(root):
+    if root is None:
+            return 0
+    if not any([root.left, root.right]):
+        return root.val
+    left, right = 0, 0
+    if root.left:
+        root.left.val += root.val * 10
+        left = sumNumbers(root.left)
+    if root.right:
+        root.right.val += root.val * 10
+        right = sumNumbers(root.right)
+    return left + right
+
+# 把每个节点的值替换为: 大于ta值的所有value之和
+# 逆向中序遍历 所有大于等于节点的值之和
+def convertBST(root):
+    def dfs(root: TreeNode):
+        nonlocal total
+        if root:
+            dfs(root.right)
+            total += root.val
+            root.val = total
+            dfs(root.left)
+    total = 0
+    dfs(root)
+    return root
+
 class TreeNode:
     def __init__(self, val=0, left=None, right=None):
         self.val = val
         self.left = left
         self.right = right 
+
+# 二叉搜索树迭代器
+class BSTIterator:
+    def __init__(self, root: TreeNode):
+        self.pos=-1
+        self.data=[]
+        self.in_order(root)
+    def next(self):
+        self.pos+=1
+        return self.data[self.pos]
+    def hasNext(self):
+        if self.pos>=len(self.data)-1:
+            return False
+        return True
+    def in_order(self,root):
+        if not root:return
+        self.in_order(root.left)
+        self.data.append(root.val)
+        self.in_order(root.right)
+
+# 是否存在 两个节点之和等于target 
+def findTarget(root, k):
+    in_order = []
+    def in_traversal(node):
+        if node is None:
+            return
+        in_traversal(node.left)
+        in_order.append(node.val)
+        in_traversal(node.right)
+    in_traversal(root)
+    l, r = 0, len(in_order) - 1
+    while l < r:
+        tmp = in_order[l] + in_order[r]
+        if tmp == k:
+            return True
+        elif tmp < k:
+            l += 1
+        else:
+            r -= 1
+    return False
+
+
+# 树的独生节点
 # 树的层次遍历list, 寻找无左or右兄弟的节点
 # 1. 递归做法:
 def getLonelyNodes(root):
@@ -2163,6 +3169,67 @@ def killProcess(pid, ppid, kill):  # 有点类似有向无环图的所有可能�
     return res 
 pid, ppid, kill = [1,3,10,5], [3,0,5,3], 5
 print('需要kill掉的进程: ', killProcess(pid, ppid, kill))
+
+# 二叉树向下的路径 节点之和 等于 target
+class Solution:
+    ans = 0
+    def pathSum(self, root: TreeNode, targetSum: int) -> int:
+        # dfs+前缀和
+        sum_map = {0:1}
+        def fun(node, pre_sum):
+            x = node.val + pre_sum
+            self.ans += sum_map.get(x-targetSum,0)
+            sum_map[x] = sum_map.get(x, 0)+1
+            if node.left:
+                fun(node.left, pre_sum+node.val)
+            if node.right:
+                fun(node.right, pre_sum+node.val)
+            sum_map[x] -= 1
+            if sum_map[x]==0:
+                del sum_map[x]
+        if not root:
+            return 0
+        fun(root, 0)
+        return self.ans 
+
+# 二叉树中序遍历, 然后结点s变成一个长条链
+class Solution:
+    def increasingBST(self, root: TreeNode) -> TreeNode:
+        # 中序遍历(左根右), 再生成一个链条树 
+        self.pre = TreeNode(0)
+        res = self.pre
+        def fun(root):
+            if not root:
+                return 
+            fun(root.left)
+            root.left = None
+            self.pre.right = root
+            self.pre = self.pre.right
+            fun(root.right)
+        fun(root)
+        return res.right
+
+# 不同的二叉搜索树
+def numTrees(n):
+    dp = [0] * (n+1)
+    dp[:2] = 1,1
+    for i in range(2,n+1):
+        for j in range(1,i+1):
+            dp[i] += dp[j-1] * dp[i-j]
+    return dp[n]
+
+# 二叉树的中序后继 (中序遍历, 节点p的后一个节点)
+class Solution:
+    def inorderSuccessor(root,p):  # 中序遍历: 左根右
+        res = None 
+        val = p.val
+        while root:
+            if root.val > val:
+                res = root
+                root = root.left
+            else:
+                root = root.right
+        return res 
 
 # 二叉树中所有距离为k的节点 距target k距离的节点list
 def distanceK(root, target):
@@ -2260,7 +3327,28 @@ def pruneTree(root):
         return None 
     return root
 
+# 监控二叉树: 摄影头可监视其父对象、自身及其 直接子对象
+def minCameraCover(root):
+    def dfs(root):
+        if not root:
+            return [float("inf"), 0, 0]
+        # a: root必须放摄像头的情况下, 覆盖整棵树需要的摄像头 
+        # b: 覆盖整棵树需要的摄像头数目无论root是否放
+        # c: 覆盖两棵子树需要的摄像头数目无论root是否被监控
+        la, lb, lc = dfs(root.left)
+        ra, rb, rc = dfs(root.right)
+        a = lc + rc + 1
+        b = min(a, la + rb, ra + lb)
+        c = min(a, lb + rb)
+        return [a, b, c]
+    a, b, c = dfs(root)
+    return b
+
 # 二叉树最大路径和  dfs 递归
+'''
+输入:root = [-10,9,20,null,null,15,7]
+输出:42
+'''
 def maxPathSum(root):
     self.res = -sys.maxsize
     self.dfs(root)
@@ -2422,10 +3510,7 @@ def removeLeafNodes(root):
         return None 
     return root 
 
-# 
-
-
-# 打开转盘锁 dfs 数组 哈希表
+# 打开转盘锁 dfs 数组 哈希表 开密码锁
 def openLock(deadends, target):
     from collections import deque
     # 求'0000'到target序列的最短距离
@@ -2477,6 +3562,25 @@ def minCost(grid):  # grad中1234分别代表向右左上下走, 不按1234指�
 grid = [[4]]
 print('左上走到右下的最小代价, 1234右左上下: ', minCost(grid))
 
+# 是否可二分图 拆分为无相互连接的两个部分图
+def isBipartite(graph):
+    n = len(graph)
+    color = [0]*n  # 0表示未访问, 1表示色1, -1表示色2 
+    queue = []
+    for i in range(n):
+        if color[i]!=0: continue  # 被分组好染好色了则不管
+        queue.append(i)  
+        color[i] = 1 # 加入色1队列
+        while queue:
+            cur = queue.pop(0)
+            for ner in graph[cur]: # 遍历cur的全部相连节点
+                if color[ner] == color[cur]: return False 
+                if color[ner] == 0:
+                    color[ner] = -color[cur]  # 相邻的得染不同的色
+                    queue.append(ner)
+    return True
+graph = [[1,3],[0,2],[1,3],[0,2]]  # [[1,2,3],[0,2],[0,1,3],[0,2]]
+print('是否可二分图: ', isBipartite(graph))
 
 def possibleBipartition(n, dislikes):
     # bfs  染色问题(有dislikes关系的不可染一样的色), 二分图问题 
@@ -2529,12 +3633,134 @@ def makeConnected(n, connections):
 connections, n = [[0,1],[0,2],[0,3],[1,2],[1,3]], 6
 print('无向图遍历, 连通网络的操作次数', makeConnected(n, connections))
 
+# 连通分量: n个节点 互相有一些连接 求连通个数 
+def countComponents(n, edges):
+    import collections 
+    d = collections.defaultdict(set)
+    # 建立无向图连接关系 
+    for e in edges:
+        d[e[0]].add(e[1])
+        d[e[1]].add(e[0])
+    todo = set(range(n))
+    def dfs(x):
+        for y in d[x]:
+            if y in todo:
+                todo.remove(y)
+                dfs(y)
+    r = 0
+    while todo:
+        x = todo.pop()
+        r += 1
+        dfs(x)
+    return r
+n, edges = 5, [[0,1], [1,2], [2,3], [3,4]] # [[0, 1], [1, 2], [3, 4]]
+print('求连通分量: ', countComponents(n, edges))
+
 # 查找集群内的关键连接  leetcode1192
 '''
 无向图要么环要么链, 有链的话(只有一个连接,), 没入环之前的点都是关键连接  bfs遍历
 剩下找两个环之间的唯一通连接, 也是关键连接. 
-https://leetcode.cn/problems/critical-connections-in-a-network/solution/python-bu-hui-suan-fa-zhi-hui-dfs-bfs-by-ikqr/
-'''  # 算了这个真不会... 有空再回来细想. 
+'''  
+def criticalConnections(n, connections):
+    if n == 2:#如果只有两点，两点一线必然是关键边
+        return connections
+    def dfs(x):#深搜，寻找两点之间是否相通
+        if x == j:#如果到达终点
+            return True
+        for y in d.get(x, []):
+            if degree[y] > 1 and (x, y) != (i, j) and visit[y] == 0:#不需要走链，且不能起点和终点直连且下个点未到达过
+                visit[y] = 1
+                if dfs(y):
+                    return True
+        return False
+    res = []
+    degree = [0 for i in range(n)]#边数
+    d = {}#每个点能到达的其他点列表
+    for i, j in connections:
+        if i not in d:
+            d[i] = set()
+        if j not in d:
+            d[j] = set()
+        d[i].add(j)
+        d[j].add(i)
+        degree[i] += 1#边+1
+        degree[j] += 1#边+1
+    deq = collections.deque()#bfs队列
+    for i in range(n):
+        if degree[i] == 1:#如果为1，则是链头
+            deq.append(i)
+    while deq:
+        i = deq.popleft()
+        for j in d[i]:
+            if degree[j] > 1:
+                res.append([i, j])#加入关键边
+                degree[j] -= 1#边数减1
+                if degree[j] == 1:#如果链未入环，继续遍历
+                    deq.append(j)
+    for i, j in connections:
+        if (degree[i] == 3 and degree[j] >= 3) or (degree[j] == 3 and degree[i] >= 3):#如果满足上面的两个条件
+            visit = [0 for i in range(n)]
+            if not dfs(i):#深搜判断是否为关键边
+                res.append([i, j])
+    return res
+
+
+# 日程表
+'''
+输入:
+["MyCalendar","book","book","book"]
+[[],[10,20],[15,25],[20,30]]
+输出: [null,true,false,true]
+'''
+class MyCalendar:
+    def __init__(self):
+        self.starts = []
+        self.ends   = []
+    def book(self, start: int, end: int) -> bool:
+        if self.starts == []:
+            self.starts.append(start)
+            self.ends.append(end)
+            return True
+        s = bisect.bisect_left(self.starts, start)
+        if s == 0 and end <= self.starts[0]:
+            self.starts[s:s] = [start]
+            self.ends[s:s]   = [end]
+            return True
+        elif start < self.ends[s-1]:
+            return False 
+        elif s == len(self.starts) or end <= self.starts[s]:
+            self.starts[s:s] = [start]
+            self.ends[s:s]   = [end]
+            return True
+        else:
+            return False      
+
+####################################################################
+# 回溯
+# 含有k个元素的组合   元素范围在1~n, 
+'''
+输入: n = 4, k = 2
+输出:
+[
+  [2,4],
+  [3,4],
+  [2,3],
+  [1,2],
+  [1,3],
+  [1,4],
+]
+'''
+def combine(n,k):
+    if k==1:
+        return [[t] for t in range(1, n+1)]
+    if n == k:
+        return [[t for t in range(1, n+1)]]
+    ans = []
+    for t in combine(n-1, k-1):
+        t.append(n)
+        ans.append(t)
+    return ans+combine(n-1, k)
+print('含有k个元素的组合: ', combine(4, 2))
 
 # 删除无效的括号
 # 回溯  bfs
@@ -2627,6 +3853,7 @@ print('省份数量, 类岛屿问题: ', findCircleNum(M))
 # 最大连通域  8邻域 
 def max_one_area(M):
     ners = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]] # 八邻域
+    # 偶尔也会四邻域  ners = [[-1,0],[0,-1],[0,1],[1,0]] 
     m = len(M)
     n = len(M[0])
     mmax = 0
@@ -2655,6 +3882,29 @@ M = [[0,0,0,0],[1,1,0,1],[0,1,1,1],[0,1,0,0],[0,0,0,1]]
 print(np.array(M))
 print('最大连通域: ', max_one_area(M))
 
+# 矩阵中 距离最近0的距离  矩阵中的距离 
+# 矩阵各个index距离最近的0的距离, 结果仍返回一个矩阵
+def updateMatrix(mat):
+    m, n = len(mat), len(mat[0])
+    ners = [[-1,0],[1,0],[0,-1],[0,1]]
+    queue = []
+    for i in range(m):
+        for j in range(n):
+            if mat[i][j] == 0:
+                queue.append([i,j])
+            else:
+                mat[i][j] = m+n  # mark位m+n, 后面会被附近的0找
+    while queue:
+        cur = queue.pop(0)
+        for ner in ners:
+            x, y = cur[0]+ner[0], cur[1]+ner[1]
+            if x>=0 and y>=0 and x<m and y<n and mat[x][y]>mat[cur[0]][cur[1]]+1:  # mat[x][y]>mat[cur[0]][cur[1]]+1表明x_y_位置上是1,需要去找附近的0
+                mat[x][y] = mat[cur[0]][cur[1]]+1
+                queue.append([x,y])
+    return mat
+mat = [[0,0,0],[0,1,0],[1,1,1]]
+print('矩阵中距离最近0的距离, 返回矩阵res:', updateMatrix(mat))
+
 # 岛屿周长  0为水 1为陆地 
 def islandPerimeter(grid):
     from scipy.signal import convolve2d
@@ -2662,6 +3912,33 @@ def islandPerimeter(grid):
     return int(abs(convolve2d(grid,[[-2,1],[1,0]])).sum())
 grid = [[0,1,0,0],[1,1,1,0],[0,1,0,0],[1,1,0,0]]
 print('岛屿的周长: ', islandPerimeter(grid))
+
+# 课程表
+def canFinish(numCourses, prerequisites):
+    edges = collections.defaultdict(list)
+    visited = [0] * numCourses
+    result = list()
+    valid = True
+    for info in prerequisites:
+        edges[info[1]].append(info[0])
+    def dfs(u: int):
+        nonlocal valid
+        visited[u] = 1
+        for v in edges[u]:
+            if visited[v] == 0:
+                dfs(v)
+                if not valid:
+                    return
+            elif visited[v] == 1:
+                valid = False
+                return
+        visited[u] = 2
+        result.append(u)
+    
+    for i in range(numCourses):
+        if valid and not visited[i]:
+            dfs(i)
+    return valid
 
 # 课程表  n门课, 数组记录修课的前后关系, bfs思路做
 # 有向图问题  
@@ -2803,11 +4080,291 @@ def asteroidCollision(nums):
 nums = [-2,-1,1,2]
 print('小行星碰撞: ', asteroidCollision(nums))
 
+# 划分为k个相等的子集
+def canPartitionKSubsets(nums):
+    summ = sum(nums)
+    if summ % k:
+        return False
+    per = summ // k
+    nums.sort()   
+    if nums[-1] > per:
+        return False
+    n = len(nums)
+    @cache
+    def dfs(s, p):
+        if s == 0:
+            return True
+        for i in range(n):
+            if nums[i] + p > per:
+                break
+            if s >> i & 1 and dfs(s ^ (1 << i), (p + nums[i]) % per): 
+                return True
+        return False
+    return dfs((1 << n) - 1, 0)
+
+# 所有子集 (可重复)
+def subsets(nums):
+    res = [[]]
+    for i in range(len(nums)):
+        for subres in res[:]:
+            res.append(subres+[nums[i]])
+    return res
+# 所有子集 (不可重复)
+def subsetsWithDup(nums):
+    dic = {}
+    for i in nums:
+        dic[i] = dic.get(i, 0) + 1
+    res = [[]]
+    for i, v in dic.items():
+        temp = copy.copy(res)  
+        for j in res:
+            temp.extend(j+[i]*(k+1) for k in range(v))
+        res = tempda
+    return res
+
+# 零钱兑换需要的硬币个数  最少的硬币数目
+def coinChange(coins, amount):
+    dp = [amount+100] * (amount+1)  # 当amount小于最小coins则根据这个信息返回0
+    dp[0]=0
+    for i in range(1, amount+1):
+        for coin in coins:
+            if i >= coin:
+                dp[i] = min(dp[i], dp[i-coin]+1)
+    return dp[-1] if dp[-1] != amount+100 else -1
+coins, amount = [1, 2, 5], 11
+print('零钱兑换: ', coinChange(coins, amount))
+
+# 可以有多少零钱兑换方法 
+def change(coins, amount):
+    dp = [0 for i in range(amount + 1)]
+    dp[0] = 1
+    for i in range(len(coins)):   
+        for j in range(coins[i], amount+1):  
+            dp[j] += dp[j - coins[i]]
+    return dp[-1]
+amount, coins = 5, [1, 2, 5]
+print('零钱兑换几种方法: ', change(coins, amount))
+
+# 完全平方数 拆分为多少个平方之和
+def numSquares(n):
+    f = [i for i in range(n+1)]
+    for i in range(n+1):
+        j = 1
+        while j*j <= i:
+            f[i] = min(f[i], f[i-j*j]+1)
+            j+=1
+    return f[-1]
+print('完全平方数, 可拆为多少个平方数之和: ',  numSquares(13))
+
+# 分割等和子集  分成2个子集
+def canPartition(nums):
+    summ = 0
+    for num in nums:
+        summ += num 
+    if summ%2 != 0:
+        return False 
+    sub_sum = summ//2
+    dp = [0]*(sub_sum+1)  # 按照背包问题做就可了
+    dp[0]=1
+    for num in nums:
+        for i in range(sub_sum, num-1, -1):
+            dp[i] += dp[i-num]
+    return dp[-1] != 0
+print('分割为两个等和子集: ', canPartition([1,5,2,3]))
+
+# 最后一块石头
+'''
+x == y 两块石头都会被完全粉碎
+如果 x != y, 剩余  y-x
+'''
+def lastStoneWeightII(stones):
+    summ = sum(stones)
+    target = summ//2
+    dp = [0]*(target+1)
+    for stone in stones:
+        for i in range(target, stone-1, -1):
+            dp[i] = max(dp[i], dp[i-stone]+stone)
+    return summ-2*dp[-1]
+print('最后一块石头:', lastStoneWeightII([31,26,33,21,40]))
+
+# 盈利计划
+def profitableSchemes(n, minProfit, group, profit):
+    MOD = 10**9 + 7
+    dp = [[0] * (minProfit + 1) for _ in range(n + 1)]
+    for i in range(0, n + 1):
+        dp[i][0] = 1
+    for earn, members in zip(profit, group):
+        for j in range(n, members - 1, -1):
+            for k in range(minProfit, -1, -1):
+                dp[j][k] = (dp[j][k] + dp[j - members][max(0, k - earn)]) % MOD
+    return dp[n][minProfit]
+
+
+# 目标和 数组的各个元素可+-加减, 实现结果等于target 问有几种方法(几种加减的组合)
+# 子集a-子集b=target, a+b=summ, -> 2a=summ+target 
+def findTargetSumWays(nums, target):
+    summ = 0
+    lens = len(nums)
+    for num in nums:
+        summ += num 
+    if summ < target or (summ+target)%2 != 0 or summ+target<0: return 0 
+    sub_sum = (summ+target)//2  # 继续背包问题解法
+    dp = [[0]*(sub_sum+1) for _ in range(lens)]
+    dp[0][0] = 1
+    if sub_sum >= nums[0]:
+        dp[0][nums[0]] += 1
+    for i in range(1, lens):
+        for j in range(sub_sum+1):
+            if j >= nums[i]:
+                dp[i][j] = dp[i-1][j] + dp[i-1][j-nums[i]]
+            else:
+                dp[i][j] = dp[i-1][j]
+    return dp[-1][-1]
+nums, target = [1,1,1,1,1], 3
+print('目标和, 数组各元素可加减实现结果等于target: 求可有几种方法', findTargetSumWays(nums, target))
+
+# 转线最便宜的航班 dp
+def findCheapestPrice(n, flights, src, dst, k):
+    from collections import defaultdict
+    connect = defaultdict(dict)  # (a,b):c 城市a到b花费c
+    for a, b, c in flights:
+        connect[a][b] = c  
+    def dfs(city, remain):  # 更新飞去dst需要的费用
+        if city == dst:
+            return 0
+        if not remain:
+            return 2**32-1
+        remain -= 1
+        ans = 2**32-1
+        for nxt in connect[city]:
+            ans = min(ans, dfs(nxt, remain) + connect[city][nxt])
+        return ans
+    
+    res = dfs(src, k + 1)
+    return res if res != 2**32-1 else -1
+n, flights, src, dst, k = 3, [[0,1,100],[1,2,100],[0,2,500]], 0, 2, 0
+print('中转最便宜的航班:', findCheapestPrice(n, flights, src, dst, k))
+
+# 0全部在1前面 需要做的最少翻转(0变1,1变0)
+def minFlipsMonoIncr(s):
+    # dp[i][0]前i个最尾是0的最小翻转次数, dp[i][1]前i个最尾是1的最小翻转次数
+    lens = len(s)
+    dp = [[0,0] for _ in range(lens)]
+    dp[0][0] = 0 if s[0] == '0' else 1
+    dp[0][1] = 0 if s[0] == '1' else 1
+    for i in range(1, lens):
+        dp[i][0] = dp[i-1][0]+(0 if s[i] == '0' else 1)
+        dp[i][1] = min(dp[i-1][1], dp[i-1][0])+(0 if s[i] == '1' else 1)
+    return min(dp[-1])
+s = '010110'
+print('0在1前面的最小翻转次数: ', minFlipsMonoIncr(s))
+
+# 子序列的数目  不同的子序列
+'''
+输入: s = "rabbbit", t = "rabbit"
+输出: 3
+rabbb_it
+rabb_bit
+rab_bbit
+'''
+def numDistinct(s,t):
+    ns, nt = len(s), len(t)
+    if ns<nt: return 0
+    dp = [[0]*(ns+1) for _ in range(nt+1)] # [ij]分别ts
+    for i in range(ns+1):
+        dp[0][i] = 1
+    for i in range(1, nt+1):
+        for j in range(1, ns+1):
+            if s[j-1]==t[i-1]:
+                dp[i][j] = dp[i-1][j-1]+dp[i][j-1]
+            else:
+                dp[i][j] = dp[i][j-1]
+    return dp[-1][-1]
+# 优化空间
+    n, m = len(s), len(t)
+    if n < m: return 0 
+    dp = [0]*m
+    if s[0] == t[0]:
+        dp[0] = 1
+    for i in range(1, n):
+        for j in range(m-1, 0, -1):
+            if s[i] == t[j]:
+                dp[j] += dp[j-1]
+        if s[i] == t[0]:
+            dp[0] += 1
+    return dp[-1]
+print('子序列的数目: ', numDistinct("babgbag", "bag"))
+
+# dp  字符串交织  s1,s2交织是否能得到s3
+def isInterleave(s1,s2,s3):
+    n1, n2, n3 = len(s1), len(s2), len(s3)
+    if n1+n2 != n3: return False
+    dp = [[False]*(n2+1) for _ in range(n1+1)]
+    dp[0][0] = True
+    for i in range(n1+1):
+        for j in range(n2+1):
+            if j>0 and dp[i][j-1] and s2[j-1]==s3[i+j-1]:
+                dp[i][j] = True 
+            if i >0 and dp[i-1][j] and s1[i-1]==s3[i+j-1]:
+                dp[i][j] = True   # s12交织的和s3去匹配嘛
+    return dp[-1][-1]
+s1,s2,s3 = "aabcc", "dbbca", "aadbbbaccc"  # "aabcc", "dbbca", "aadbbcbcac"
+print('s12交织匹配是否可得到s3: ',isInterleave(s1,s2,s3))
+
+# 最低票价  
+# 三种票价, 一天有效, 7天有效, 一个月有效
+# dp[n]=min(dp[n-1]+cost[0], dp[n-7]+cost[1], dp[n-30]+cost[2])
+# 当天不需要出行, 就dp[n]=dp[n-1]
+def mincostTickets(days, costs):
+    trip_days = days[-1]
+    dp = [0]*(trip_days+1)
+    for trip_day in days:
+        dp[trip_day] -= 1  # -1标记好当天回去trip, 后面会判断dp[i]是否等于0的.
+    for i in range(1, trip_days+1):
+        if dp[i] == 0:  # 不是-1则i天不trip
+            dp[i] = dp[i-1]  # 当天不旅行则费用等于dp[i-1]
+        else:
+            a = dp[i-1]+costs[0]  # 买当天票的费用
+            if i-7>=0:  # 之前买了周票?
+                b = dp[i-7]+costs[1]
+            else:
+                b = costs[1]
+            if i-30>=0:  # 之前买了月票?
+                c = dp[i-30]+costs[2]
+            else:
+                c = costs[2]
+            dp[i] = min(a,b)
+            dp[i] = min(c, dp[i])
+    return dp[-1] 
+days, costs = [1,2,3,4,5,6,7,8,9,10,30,31],  [2,7,15]
+print('旅行最小票价: ', mincostTickets(days, costs))
+
+
+# 以图判树
+def validTree(n, edges):
+    # 判断是不是树: 是连通图; 不存在环
+    from collections import defaultdict
+    graph = defaultdict(list)  # 存各个节点的连接关系
+    for x,y in edges:
+        graph[x].append(y)
+        graph[y].append(x)
+    vis = set()
+    def dfs(i, pre):
+        if i in vis: return False
+        vis.add(i)
+        for j in graph[i]:
+            if pre != j and not dfs(j,i):
+                return False  # 有环
+        return True 
+    return dfs(0, None) and len(vis) == n  # len(vis) == n 表示节点都能遍历到是连通图
+n, edges = 5, [[0,1],[1,2],[2,3],[1,3],[1,4]] # [[0,1],[0,2],[0,3],[1,4]]
+print('判断图是否是树形态: ', validTree(n, edges))
+
 # dp 栈 
-# 矩形中最大长方形面积
+# 矩形中最大长方形面积  最大矩形
 # 直方图思想做: 第一行看做直方图, 前两行看做直方图, 前三行看做直方图...
 def maximalRectangle(matrix):
-    def maxheight(height, res):
+    def maxheight(height, res):  # 计算直方图中的最大面积通用方法
         stack = [-1]    
         n = len(heights)
         for i, num in enumerate(height):
@@ -2829,8 +4386,7 @@ def maximalRectangle(matrix):
             elif i > 0 and matrix[i - 1][j] == '0':
                 heights[j] = int(matrix[i][j])  # 上一行为0, 则高度重新累计
             else: heights[j] += 1  # 上一行也是1, 则高度直接+1
-        # 每一行会更新最大直方图面积 
-        ans = maxheight(heights, ans)
+        ans = maxheight(heights, ans)  # 每一行会更新最大直方图面积
     return ans
 matrix = ["10100","10111","11111","10010"]
 print('矩阵中的最大面积: ', maximalRectangle(matrix))
@@ -2909,7 +4465,122 @@ def longestValidParentheses(str):
 s = ")()())"
 print('最长有效括号: ', longestValidParentheses(s))
 
+# 数据流的第k大
+class KthLargest:
+    def __init__(k, nums):
+        self.k = k
+        self.stack = []
+        for i in nums: 
+            self.stack.append(i)
+    def add(val):
+        self.stack.append(val)
+        self.stack.sort(reverse=True)
+        num = 0
+        for i in self.stack:
+            num = num + 1
+            if num == self.k:
+                return i
+
 ###########################################################
+# 抛硬币 
+def probabilityOfHeads(prob, target):
+    p = [1-prob[0], prob[0]] 
+    p += [0] * (target - 1)    # p的长度变成target+1了~ 后面的不知道就都补0
+    dp=[p, [0] * (target + 1)] # dp[0]上回投币状态, dp[1]当前投币状态(未知so初始化全为0)
+    for p in prob[1:]:
+        dp[1][0] = (1-p) * dp[0][0]  # 这次硬币仍朝下
+        for i in range(1, target+1):
+            dp[1][i] = ((1-p) * dp[0][i] + p * dp[0][i-1])
+        dp[0] = dp[1][:]  # 更新上一次的target情况为当前情况
+    return dp[0][target]
+prob, target = [0.5,0.5,0.5,0.5,0.5], 0
+print('抛硬币: ', probabilityOfHeads(prob, target))
+
+# 最小标记代价
+# 调整数组的值使各个元素间的差<=target, 调整代价为abs(差)  各元素值都<=100
+def MinAdjustmentCost(A, target):
+    n = len(A)
+    dp = [[1000000000] * 101 for _ in range(n)]
+    for i in range(n):
+        for j in range(1, 101):
+            if i == 0:
+                dp[0][j] = abs(j - A[0])
+            else:
+                left = max(1, j - target)  # 要兼顾左右差值
+                right = min(100, j + target)
+                for k in range(left, right + 1):
+                    dp[i][j] = min(dp[i][j], dp[i - 1][k] + abs(j - A[i]))
+    return min(dp[-1])
+A, target = [3,5,4,7], 2
+print('最小调整代价: ', MinAdjustmentCost(A, target))
+
+# 不相交的线  简单dp就够了不用想太复杂
+'''
+1   4   2
+|    \
+|     \   
+1   2   4   2条~
+''' 
+def maxUncrossedLines(nums1, nums2):
+    l1, l2 = len(nums1), len(nums2)
+    dp = [[0]*(l2+1) for _ in range(l1+1)]
+    for i in range(1,l1+1):
+        for j in range(1, l2+1):
+            if nums1[i-1]==nums2[j-1]:
+                dp[i][j] = dp[i-1][j-1]+1
+            else:  # 只能回退-1(i-1,j-1)比较, 不然就可能相交~
+                dp[i][j] = max(dp[i-1][j], dp[i][j-1])
+    return dp[-1][-1]
+nums1, nums2 = [2,5,1,2,5], [10,5,2,1,5,2]
+print('不相交的线: ', (nums1, nums2))
+
+# dp 两个字符串的最小ASCII删除和
+# 两个字符串, 各自可做若干个字符删除(就会积累ascll值), 删除后两个剩余串相等了~
+def minimumDeleteSum(s1, s2):
+        m,n=len(s1),len(s2)
+        dp=[[float('inf')]*(n+1) for _ in range(m+1)]
+        dp[0][0]=0
+        for i in range(m):
+            dp[i+1][0]=dp[i][0]+ord(s1[i])
+        for j in range(n):
+            dp[0][j+1]=dp[0][j]+ord(s2[j])
+        for i in range(1,m+1):
+            for j in range(1,n+1):
+                if s1[i-1]==s2[j-1]:
+                    dp[i][j]=dp[i-1][j-1]
+                else:
+                    dp[i][j]=min(dp[i-1][j]+ord(s1[i-1]),dp[i][j-1]+ord(s2[j-1]))
+        return dp[-1][-1]
+s1, s2 = "delete", "leet"
+print('两个字符串各个做删除获得ascll值, 使剩余串相等: ', minimumDeleteSum(s1, s2))
+
+
+# dp 粉刷房间  3间房子
+def minCost(costs):
+    if not costs:
+        return 0
+    for i in range(1, len(costs)):
+        # [i][j] i是房间index, 012是三种颜色
+        costs[i][0] += min(costs[i-1][1], costs[i-1][2])
+        costs[i][1] += min(costs[i-1][0], costs[i-1][2])
+        costs[i][2] += min(costs[i-1][1], costs[i-1][0])
+    return min(costs[-1])  # 最后一间房间, 不同012色组合方案的最小值
+costs = [[17,2,17],[16,16,5],[14,3,19]]
+print('粉刷房间,相邻不可同色, 求costs最小: ', minCost(costs))
+# 粉刷房子|| n个房子粉刷, 也是相邻不同色,求代价
+def minCostII(costs):
+    n = len(costs)  # 房间数
+    k = len(costs[0]) # 颜色数
+    dp = [0]*k 
+    for i in range(n):
+        cur_min_cost = [0]*k 
+        for j in range(k):
+            cur_min_cost[j] = min(dp[:j]+dp[j+1:]) + costs[i][j]
+        dp = cur_min_cost
+    return min(dp)
+costs = [[1,5,3],[2,9,4]]
+print('粉刷问题2: ', minCostII(costs))
+
 # dp 正则表达式
 def isMatch(s, p):
     m, n = len(s), len(p)
@@ -2931,6 +4602,51 @@ def isMatch(s, p):
 s, p = 'aa', 'a'  # "ab", ".*"
 print('dp做法, 正则表达式匹配: ', isMatch(s,p))
 
+# 玩家1取胜否? 只能从两边取  玩家12交替取树 和大的胜 预测赢家
+def PredictTheWinner(nums):
+    if not nums: return
+    lens = len(nums)   # dp[i][j]表示玩家1在ij范围内能取胜的情况
+    if lens%2==0:
+        return True   # 偶数个数一定玩家1胜 
+    dp = [[0 for _ in range(lens)] for _ in range(lens)]
+    for i in range(lens):
+        dp[i][i] = nums[i]
+    for i in range(lens-1):
+        dp[i][i+1] = max(nums[i], nums[i+1])
+    for x in range(2, lens):  # 相隔至少两个元素,i ~ i+x
+        for i in range(lens-x): # 0 ~ lens-x-1
+            tmp1 = nums[i] + min(dp[i+2][i+x], dp[i+1][i+x-1]) 
+            tmp2 = nums[i+x] + min(dp[i][i+x-2], dp[i+1][i+x-1])
+            dp[i][i+x] = max(tmp1, tmp2)
+    return dp[0][-1] >= sum(nums)/2
+print('玩家1胜利: ', PredictTheWinner([1,5,233,7]))
+
+# 玩游戏 石头游戏 每次可拿前三个中的一个  得分积累  Alice先开始
+def stoneGameIII(stoneValue):
+    n = len(stoneValue)
+    suffix_sum = [0] * (n - 1) + [stoneValue[-1]]
+    for i in range(n - 2, -1, -1):
+        suffix_sum[i] = suffix_sum[i + 1] + stoneValue[i]
+    f = [0] * n + [0]
+    for i in range(n - 1, -1, -1):
+        f[i] = suffix_sum[i] - min(f[i+1:i+4])
+    total = sum(stoneValue)
+    if f[0] * 2 == total:
+        return "Tie"  # 平局
+    else:
+        return "Alice" if f[0] * 2 > total else "Bob"
+print('谁赢, ', stoneGameIII([1,2,3,6]))
+def winnerSquareGame(n):  # Alice先Bob后
+    f = [False] * (n + 1)
+    for i in range(1, n + 1):
+        k = 1
+        while k * k <= i:
+            if not f[i - k * k]:
+                f[i] = True
+                break
+            k += 1
+    return f[n]
+print('拿走任意 非零平方数 个石子: ', winnerSquareGame(17))
 # dp  按照字典拆分单词:  s = "leetcode", wordDict = ["leet", "code"] True 
 def wordBreak(s, wordDict):
     lens = len(s)
@@ -2939,14 +4655,128 @@ def wordBreak(s, wordDict):
     for i in range(1, lens+1):
         for j in range(i):
             # dp[j]截止到j(不含j)可被拆分的bool情况
-            # s[j: i]为剩下的sub_str
-            if dp[j] and s[j:i] in wordDict:
+            if dp[j] and s[j:i] in wordDict: # s[j: i]为剩下的sub_str
                 dp[i] = True 
                 break  # 跳出j的循环, 继续循环i 
     return dp[-1]
 s, wordDict = "catsandog", ["cats", "dog", "sand", "and", "cat"]
-print('按照字典拆分string: ', wordBreak(s, wordDict))
+print('拆分单词, 单词拆分: ', wordBreak(s, wordDict))
+# 单词替换  单词匹配时, 字符相对顺序不可换  
+'''
+输入:  dictionary = ["cat","bat","rat"], sentence = "the cattle was rattled by the battery"
+输出:  "the cat was rat by the bat"
+'''
+# 句子中的各个单词, 用dictionary内的sub_word替换
+def replaceWords(dictionary, sentence):
+    dictionarySet = set(dictionary)
+    words = sentence.split(' ')
+    for i, word in enumerate(words):
+        for j in range(1, len(words)+1):
+            if word[:j] in dictionarySet:
+                words[i] = word[:j]
+                break
+    return ' '.join(words)
+dictionary, sentence = ["cat","bat","rat"], "the cattle was rattled by the battery"
+print('字典单词替换句中词: ', replaceWords(dictionary, sentence))
 
+# 单词拆分2  字符串 拆成words形成句子
+def wordBreak(s, wordDict):
+    res = []
+    # remove_s是在遍历过程中，不断被缩小的s.
+    def dfs(words, remove_s):
+        if remove_s == '':  # remove_s==''了，证明已经遍历完整个s了~
+            res.append(" ".join(words)) # 可以把所有的words转移到res[]中啦~
+            return
+        for w in wordDict:
+            if remove_s[:len(w)] == w:  # 匹配上了单词
+                dfs(words + [w], remove_s[len(w):])
+    dfs([],s) # 第一个参数[]是已经匹配到了的word，放进list中.
+    return res
+
+# 骑士可以8邻域方向走, 每次走两步, 求k次后还留在棋盘内的概率
+def knightProbability(n, k, row, column): # row, column是骑士的起点位置
+    dp = [[[0] * n for _ in range(n)] for _ in range(k + 1)]
+    for step in range(k + 1):
+        for i in range(n):
+            for j in range(n):
+                if step == 0:
+                    dp[step][i][j] = 1
+                else:
+                    for di, dj in ((-2, -1), (-2, 1), (2, -1), (2, 1), (-1, -2), (-1, 2), (1, -2), (1, 2)):
+                        ni, nj = i + di, j + dj
+                        if 0 <= ni < n and 0 <= nj < n:
+                            dp[step][i][j] += dp[step - 1][ni][nj] / 8
+    return dp[k][row][column]
+print('骑士还在棋盘内: ', knightProbability(3, 2, 0, 0))
+
+# 角矩形的数量
+def countCornerRectangles(grid):
+    count = collections.Counter()
+    ans = 0
+    for row in grid:
+        for c1, v1 in enumerate(row):
+            if v1:
+                for c2 in range(c1+1, len(row)):
+                    if row[c2]:
+                        ans += count[c1, c2]
+                        count[c1, c2] += 1
+    return ans
+
+# 4键键盘 
+def maxA(N):
+    dp = [0] * (N + 1)
+    for i in range(1, N + 1):
+        dp[i] = dp[i-1] + 1 # 先是直接按A
+        for j in range(2, i): # j是按ctrl+C的地方
+            # i-j是连续按了多少次ctrl+V，+1是因为原来就有dp[j-2]的A在那里，所以总数是dp[j-2] * (i-j+1)
+            dp[i] = max(dp[i], dp[j-2] * (i - j + 1))
+    return dp[-1]
+print('4键键盘', maxA(7))
+
+# 数组错位排序
+def findDerangement(n): # D(n)=n * D(n-1) + (-1)^n
+    res = 0
+    for i in range(n + 1):
+        res = (i * res + (-1) ** i) % (10 ** 9 + 7)
+    return res
+
+# 分糖果  n个不同的糖放入不同的k个袋子 每个袋子至少一个
+def waysToDistribute(n,k):
+    dp = [[0 for _ in range(n + 1)] for _ in range(k + 1)]
+    for i in range(1, k + 1):
+        dp[i][i] = 1        #每个袋子放一个
+    for i in range(1, k + 1):       #袋子
+        for j in range(i + 1, n + 1):   #糖果数
+            #新的糖果，单独一个盒子
+            dp[i][j] = dp[i-1][j-1]
+            #新的糖果，加入其他的盒子
+            dp[i][j] += dp[i][j-1] * i
+            dp[i][j] %= 10**9+7
+    return dp[k][n]
+print('n个不同糖果放入k个不同袋子: ', waysToDistribute(20,5))
+
+# 屏幕可显示句子的数量
+'''
+一个单词不能拆分成两行
+单词在句子中的顺序必须保持不变
+在一行中 的两个连续单词必须用一个空格符分隔
+'''
+def wordsTyping(sentence, rows, cols):
+    s = ''
+    for word in sentence:
+        if len(word) > cols:
+            return 0
+        s = s + word + ' '
+    i = 0
+    n = len(s)
+    for l in range(rows):
+        i += cols
+        while s[i % n] != ' ':
+            i -=1
+        i +=1
+    return i // n 
+rows, cols, sentence = 3,6,["a", "bcd", "e"]
+print('屏幕显示句子: ', wordsTyping(sentence, rows, cols))
 # 打家劫舍1  相邻不可偷
 def rob(nums):
     if not nums:
@@ -2954,7 +4784,6 @@ def rob(nums):
     n = len(nums)
     if n<=1:
         return nums[0]
-    
     i_2, i_1 = 0, 0  # i-2位置, i-1位置的最大偷窃值
     res = 0
     for i in range(n):
@@ -2964,5 +4793,301 @@ def rob(nums):
     return res
 nums = [2,7,9,3,1]
 print('相邻位置不可偷的打家劫舍: ', rob(nums))
+# 首尾连在一起, 相邻不可偷 
+def rob(nums):
+    if not nums:
+        return 0
+    n = len(nums)
+    if n <= 2:
+        return max(nums[0], nums[-1])
+    def rob_(a, b, nums):  # 上题的相邻不偷问题
+        i_1, i_2, res = 0,0,0
+        for i in range(a, b):
+            res = max(i_1, i_2+nums[i])
+            i_2 = i_1
+            i_1 = res 
+        return res 
+    res1 = rob_(0, n-1, nums) # 偷第一家那就不偷最后一家,
+    res2 = rob_(1, n, nums) # 偷最后一家就不偷第一家 
+    return max(res2, res1)
+nums = [1,2,3,1]
+print('首尾连接, 相邻位置不可偷的打家劫舍: ', rob(nums))
 
-# 首尾相邻的打家劫舍
+# 买股票
+# 1. 只交易一次 无手续费
+def maxProfit(prices):
+    ll = len(prices)
+    dp = [0]*ll
+    mmin = prices[0]
+    for i in range(1, ll):
+        mmin = mmin if prices[i] > mmin else prices[i]
+        dp[i] = max(dp[i-1], prices[i]-mmin)
+    return dp[-1]
+prices = [7,6,4,3,1]  # [7,1,5,3,6,4]
+print('买股票1: ', maxProfit(prices))
+# 无限次购买, 有手续费, 且手上还有股票则不能买入
+def maxProfit(prices, free):
+    '''
+    dp0[i], dp1[i]: (0, i]内最后一次交易是买, 卖
+    dp0[i] = max(dp0[i-1], dp1[i-1]-prices[i])  # 没买prices[i], 买了prices[i]
+    # 因为再次买入前一定得手上无股票, so得是: dp1[i-1]
+    
+    dp1[i] = max(dp1[i-1], dp0[i-1]-free+prices[i])  # [i]时候没买卖交易, [i]时候卖了,完成一次买卖需付手续费.
+    '''
+    dp0, dp1 = -prices[0], 0
+    for p in prices[1:]:
+        dp0 = max(dp0, dp1-p)
+        dp1 = max(dp1, dp0+p-free)
+    return dp1
+prices, free = [1,3,7,5,10,3], 3 #  [1, 3, 2, 8, 4, 9], 2
+print('无限次购买, 有手续费, 且手上还有股票则不能买入, ', maxProfit(prices, free))
+# 股票有冷冻期 卖出 冷冻 买入 
+def maxProfit(prices):
+    n = len(prices)
+    if n == 0:
+        return 0 
+    # dp0, dp1最后一次交易是买入, 卖出
+    dp0 = [-prices[0]]*n
+    dp1 = [0]*n 
+    for i in range(1, n):
+        dp0[i] = max(dp0[i-1], -prices[i])
+        if i >= 2:
+            dp0[i] = max(dp0[i], dp1[i-2]-prices[i])
+        dp1[i] = max(dp1[i-1], dp0[i-1]+prices[i])  
+    return dp1[n-1]
+prices = [1,2,3,0,2]
+print('卖出冷冻买入: ', maxProfit(prices))
+
+# 最多两次交易, 没卖出不可买新股
+def maxProfit(prices):
+    if not prices:
+        return 0
+    n = len(prices)
+    dp = [[[0]*2 for _ in range(3)] for _ in range(n)]
+    # dp[i][j][0/1] 0/1代表是否持有股票 ij为第i天交易了第j次
+    for j in range(3):
+        dp[0][j][0], dp[0][j][1] = 0, -prices[0]
+    for i in range(1,n):
+        for j in range(3):
+            if not j: # j==0 即第i天没有进行交易
+                dp[i][j][0] = dp[i-1][j][0]
+            else:  # 第i天进行了交易
+                dp[i][j][0] = max(dp[i-1][j][0], dp[i-1][j-1][1]+prices[i])
+                # dp[i-1][j][1]+prices[i] 表示i-1天是有的，i天卖出去了，所以+proces[i]
+            dp[i][j][1] = max(dp[i-1][j][1], dp[i-1][j][0]-prices[i])
+            # dp[i-1][j][0]-prices[i] i-1天没股票，i天买入，所以-prices[i]
+    return max(dp[n-1][0][0], dp[n-1][1][0], dp[n-1][2][0])
+prices = [7,6,4,3,1]  # [1,2,3,4,5]
+print('两次交易卖出前不买入, ', maxProfit(prices))
+# 可进行k次交易
+def maxProfit(k, prices):
+    n = len(prices)
+    if not n:
+        return 0
+    if k >= n//2:
+        # 可以一直买入卖出
+        res = 0
+        for i in range(1, n):
+            res += max(0, prices[i]-prices[i-1])
+    # dp0为最后一次操作是买入, dp1为最后一次操作是卖出
+    dp0 = [-prices[0]]*(k+1)
+    dp1 = [0]*(k+1)
+    for p in prices[1:]:
+        for j in range(1, k+1):
+            # dp0[j]: 没买第i支股票
+            # or j-1次的最后一下是卖出: dp1[j-1], 第j次是买入 -p
+            dp0[j] = max(dp0[j], dp1[j-1]-p)
+
+            # dp1[j]:不卖第i支股票, 则: dp1[i-1][j]
+            # or 卖的第i支股, 则dp0[i-1][j] 注意不用j-1, 因为买入+卖出==一次交易. 故: dp0[i-1][j]+p
+            dp1[j] = max(dp1[j], dp0[j]+p)
+    # 最后肯定要清仓的, dp1.
+    return max(dp1[k], 0)
+k, prices = 2, [3,2,6,5,0,3]
+print('k次股票交易: ', maxProfit(k, prices))
+
+# 数组 排序  数组总和
+# 1. 数组部分和==target 不需要连续 可重复数值相加    允许重复选择元素的组合
+def func(can, target, path, minV):
+    res = []
+    for x in range(len(can)):
+        diff = target - can[x]
+        if diff >= minV:
+            res += func(can[x:], diff, path + [can[x]], can[x])
+        elif diff == 0:
+            res += [path + [can[x]]]
+    return res
+def combinationSum(candidates, target):
+    candidates.sort()   # 先排序 从小往大积累sum
+    return func(candidates, target, [], min(candidates))
+candidates, target = [2,3,5], 8
+print('数组元素相加等于target, 可重复, 无需连续', combinationSum(candidates, target))
+# 不可重复取用元素
+def combinationSum2(nums, target):
+    nums.sort()
+    table = [None] + [set() for i in range(target)]
+    # [None, set([]), set([]), set([]), set([]), set([]), set([])]   target个set()
+    for i in nums:
+        if i > target:
+            break
+        for j in range(target - i, 0, -1):
+            table[i + j] |= {elt + (i,) for elt in table[j]}
+        table[i].add((i,))
+    return list(map(list, table[target]))
+nums, target = [12,14,11,15], 26
+print('数组元素相加等于target, 不可重复, 无需连续', combinationSum2(nums, target))
+# nums中元素存在重复, 每个元素只能用一次, 解集不可出现重复组合
+def back_Tracking(nums, target, cur, tmp_res, res):
+    if target == 0:
+        res.append(tmp_res)
+    elif target <0:
+        return 
+    for i in range(cur, len(nums)):
+        if i != cur and nums[i] == nums[i-1]: # 针对nums中有重复元素的
+            continue
+        back_Tracking(nums, target-nums[i], i+1, tmp_res+[nums[i]], res)
+def combinationSum2(nums, target):
+    res = []
+    nums.sort()  # 排序先
+    back_Tracking(nums, target, 0, [], res)
+    return res 
+nums, target = [2,5,2,1,2], 5# [10,1,2,7,6,1,5], 8
+print('回溯 nums中有重复, 子数组和等于target, 不允许重复使用组合内的元素: ', combinationSum2(nums, target))
+# 排列组合的数目 转为用dp做  可重复使用元素, res内各个子数组也可重复
+'''
+输入:  nums = [1,2,3], target = 4
+输出:  7
+所有可能的组合为:
+(1, 1, 1, 1)
+(1, 1, 2)
+(1, 2, 1)
+(1, 3)
+(2, 1, 1)
+(2, 2)
+(3, 1)
+'''
+def combinationSum4(nums, target):
+    dp = [0]*(target+1)
+    dp[0] = 1
+    for i in range(1, target+1):
+        summ = 0
+        for num in nums:
+            if i-num>=0: summ+=dp[i-num]
+        dp[i] = summ
+    return dp[target]
+nums, target = [1,2,3], 4
+print('可重复使用, 可不set的和为target的个数: ', combinationSum4(nums, target))
+
+# 数组相对排序  arr2元素都在arr1中, 对arr1排序保持arr2的顺序, arr2中没有的元素则升序放到末尾
+def relativeSortArray(arr1, arr2):
+    map_arr1= dict()
+    for num in arr1:
+        map_arr1[num] = map_arr1.get(num, 0)+1
+    remain_nums = [a for a in arr1 if a not in arr2]
+    # arr2中没有的排序好, 一会直接放尾部
+    remain_nums = sorted(remain_nums)
+    res = []
+    for num in arr2:
+        for i in range(map_arr1[num]):
+            res.append(num)
+    return res + remain_nums
+arr1, arr2= [2,3,1,3,2,4,6,7,9,2,19], [2,1,4,3,9,6]
+print('数组相对排序: ', relativeSortArray(arr1, arr2))
+
+# 堆 两个升序数组, 求最小的k对 num1[i]+num2[j]
+# 最小堆做
+def kSmallestPairs(nums1, nums2):
+    m, n = len(nums1), len(nums2)
+    ans = []
+    pq = [(nums1[i] + nums2[0], i, 0) for i in range(min(k, m))]
+    import heapq
+    while pq and len(ans) < k:
+        _, i, j = heapq.heappop(pq)
+        ans.append([nums1[i], nums2[j]])
+        if j + 1 < n:
+            heapq.heappush(pq, (nums1[i] + nums2[j + 1], i, j + 1))
+    return ans
+nums1, nums2, k = [1,7,11], [2,4,6], 3
+print('两个升序数组组成的k对最小和: ', kSmallestPairs(nums1, nums2))
+
+# 扔鸡蛋  
+# 两枚鸡蛋确定f楼(高于f则碎,低于f则不碎) 求需要操作的次数
+def twoEggDrop(n):
+    cur, total = 1,1
+    while total < n:
+        total += cur+1
+        cur += 1
+    return cur 
+print('两枚鸡蛋确定f, 求需要操作的次数, ', twoEggDrop(100))
+# 同上, 但给k枚鸡蛋, 求需要操作的次数
+def superEggDrop(k,n):
+    memo = {}
+    def dp(k, n):
+        if (k, n) not in memo:
+            if n == 0:
+                ans = 0
+            elif k == 1:
+                ans = n
+            else:
+                lo, hi = 1, n
+                while lo + 1 < hi:
+                    x = (lo + hi) // 2
+                    t1 = dp(k - 1, x - 1)
+                    t2 = dp(k, n - x)
+                    if t1 < t2:
+                        lo = x
+                    elif t1 > t2:
+                        hi = x
+                    else:
+                        lo = hi = x
+                ans = 1 + min(max(dp(k - 1, x - 1), dp(k, n - x))
+                                for x in (lo, hi))
+            memo[k, n] = ans
+        return memo[k, n]
+    return dp(k, n)
+print('扔k枚鸡蛋: ', superEggDrop(3,14))
+
+# 握手问题
+def numberOfWays(numPeople):
+    # 每个人与除自己外的人握手 共n//2次握手 握手则连线  求不会线交叉的握手方式
+    dp=[0]*(numPeople+1)
+    dp[0], dp[2] = 1,1
+    for i in range(4, numPeople+1):
+        for j in range(2, i+1):
+            l = j-2
+            r = i-j
+            count = (dp[l]*dp[r])%1000000007
+            dp[i] = (dp[i]+count)%1000000007
+            j += 2
+    return dp[-1]
+print('握手问题: ', numberOfWays(8))
+
+# 移除k个数使剩余的不同元素最少
+def findLeastNumOfUniqueInts(arr, k):
+    import collections 
+    if not arr:
+        return 0
+    lens = len(set(arr))
+    arr = sorted(collections.Counter(arr).items(), key=lambda x:x[1])
+    for key, v in arr:
+        if v > k:
+            return lens
+        k -= v
+        lens -= 1
+    return lens
+print('移除k个数使剩余不同元素最少', findLeastNumOfUniqueInts([4,3,1,1,3,3,2], 3))
+
+# 无重叠区间  移除最少个数区间 使剩余区间无重叠
+def eraseOverlapIntervals(intervals):
+    if not intervals:
+        return 0
+    intervals.sort(key=lambda x: x[1])
+    n = len(intervals)
+    right = intervals[0][1]
+    ans = 1
+    for i in range(1, n):
+        if intervals[i][0] >= right:
+            ans += 1
+            right = intervals[i][1]
+    return n - ans
+print('删除最少区间使得无重复区间 贪心: ', eraseOverlapIntervals([[1,2],[2,3],[3,4],[1,3]]))
