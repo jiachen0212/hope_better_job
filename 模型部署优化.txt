@@ -1,0 +1,524 @@
+# duzi 二面准备知识  但一个没问...
+paddle开源的部署工具:
+FastDeploy:  cpu gpu 
+	1. 模型压缩比例: 2.x~3.x 
+	   好的压缩精度基本只掉0.5个点
+	   推理速度提3~5倍 
+	2. 量化/剪枝/蒸馏, (在线or离线)
+		1. 自驾感觉离线好些, 算力全部拿来做推理计算
+		2. 蒸馏得是在线的吧, 在线train
+		3. 离线量化: 权重太小丢弃,权重做scale,对数/线性量化等
+           在线量化: 类混精train, 部分参int8/32训  
+              int的话,得针对不可导的round做拟合(DSQ傅里叶拟合round)
+              QuantNoise随机量化部分参数,其他参数正常回传梯度)
+		4. 非结构化稀疏: 
+			1. GMP,训练过程中一步步慢慢裁剪(稳定阶段,剪裁训练阶段,调优阶段); 
+			2. 原矩阵稀疏后变为稀疏矩阵(含很多0但模型结构上没直接砍掉ta们)  
+			3. 稀疏1x1卷积算子(非零元素做类,im2col的,重排,再矩阵乘法),fc换conv等   
+               [非常高稀疏度的矩阵计算,才会比非稀疏的运算快]
+		5. 剪枝: 
+			1. 在线train轻量的 (feature map size, channel, block等剪)
+			2. 训好的大模型剪枝, 再slim-model-train会数据适应下
+
+目标检测中的亮点提升:
+    1. cls, reg 解耦
+    2. fpn, pan, 金字塔, 等多head特征融合, 自适应head检各size目标
+    3. atss, tal 等 正负样本匹配规则 
+    4. 针对场景设计的data-aug(如expand)
+
+一、sxf敏感图像分类:  模型最后砍到10M左右, 内存耗用:300M左右
+    1. 知识蒸馏 
+    2. 剪枝: channel砍, feature_map随机/指定mask, block砍, fc换conv, 稀疏(weight or 梯度太小 砍) 
+    3. 量化: 
+        在线: 目前知道DSQ傅里叶拟合round, QuantNoise
+        离线: 量化conv-conv对 (conv的参数大小做scale)
+        pre-layer量化: 整层tensor共用一个scale和zero point
+        per-channel量化: 每个kernel设计scale参数 
+        对数量化, 线性量化 等 
+
+二、huffman编码项目:
+    1. c++并发写过   (c++,python交互 ctypes,pybind都能做, ctypes适用:可变指针,string等,遇到特殊字符则会失败)
+    2. Python和c++的打通, 做过(则基于dl框架(torch,tf等)做cuda功能扩展, 就不会太难)  
+        cpp 里写逻辑计算代码
+        框架api调用[.cu,,cpp],
+        .cu写cuda实现, 密集计算放这. ThreadsNumPerBlock经验值: 512/1024 
+        .h头文件声明  
+    编译方法: JIT即时, 写成setup.py, cmake编译写CMakeLists
+
+三、海康实习
+    1. 写过cuda(caffe下的优化conv实现), 链式法则做导数传递 
+    2. 稀疏也做过: 参数趋近0 or 梯度太小 的剔除掉
+
+四、腾讯实习
+    1. 发了基于faster-rcnn的改进paper, 针对采样不合理做的改进, 正负样本选定 (ResNet-101-FPN cocotest40.5)
+    2. anchor-free
+        FCOS: 预测anchor点,点在gt-box内则为正点. 各head内等间隔铺设anchor点(不同层间的间隔则是不同的)
+            centerness: 是否标注中心 
+            box回归: 预测tblr值  
+    pp-yoloe: 跑了学了, 开源代码 
+    3. yolo系也用过做过比赛(logo检测, 但刷比赛还是大模型backbone+cascade结构强) 
+        (yolo系优点: one-stage结构简单部署友好, 正负样本匹配and数据增强做的很好)
+        [遍历每个特征图, 一起做正负样本匹配]
+        1. yolo3: 多标签分类(减掉互斥性); anchor init: k-means
+        2. yolo5 正负样本匹配: 
+            1. 计算gt和anchor的宽高比确认是否可匹配; 
+            2. 能配到的gt所处的grid,加上其附近的俩grid,均分配为正样本
+            3. 某anchor配上了多个gt, 选ciou最大的那个为所属gt, 则本anchor相对其他gt就是负样本了
+        3. yolox: 
+            1. simOTA  自动决定每个gt要从哪层特征图来检测(通过iou+cls排序就实现了啊!)
+                1. 收集所有特征层: box中心是否在,以gt中心为中心的某圆范围内.  
+                2. 加权box和gt间的iou和cls-loss, 得到各个box的综合分值
+                3. 确定gt需要的正样本个数: gt的top10iou相加. (某个gt和box的iou都是0.2, 0.2*10=2,需要2个正样本)
+                4. 按照2中的分数, 排序选正负样本即可.  
+            2. 其他改进: 
+                1. 解耦: cls, iou+reg (3~5都是cls+reg+obj一个head出来)
+                    p3,4,5几层先1x1卷积降维到256, 再3x3, 再分别做reg, iou 
+                2. 提出: Mosaic, MixUp  (图像马赛克,融合)  直接起到摒弃ImageNet pretrain的作用.
+        4. yolo7: aux head(粗), lead head(细)
+            正负样本分配类似yolox, auxhead的正样本分配更多, lead更少. 
+            aux更关心recall, lead则做精修. 
+
+五、momenta实习:  (做的是开进/出停车场的场景)  (我交出去的就是 caffe模型)   部署这块,caffe和onnx都可
+    1. 平稳交付过行人检测 (fast-rcnn(conv+bn融合) + tracker(tba) + align) 
+        track用的很简单算法, so再加align.(align类似级联,让box位置更准(reg提升)+剔除些错误框(cls提升))
+        align平稳涨2个点. 
+        数据量: 大数据高达266w, 小的:train7w,test2w. 百万数据量无法快速收敛拿到结论, 可抽个1/100train-test, 快速验证想法.  
+    2. 处理过 太小,部分人体遮挡 的hard case (针对fail case设计数据增强, 远视角成人用小孩数据"模拟")
+        太远导致的太小行人没检出问题不大, 车开近了再没检到就有问题了. 
+        (结合场景去解决问题, 没必要什么问题都得攻克)
+    3. 行人检测方案补充: 
+        1. 人体关键点(姿态检测), 提升遮挡行人检出率
+        2. 卡尔曼滤波: 基于前帧位置预测下一帧位置; 匈牙利算法做匹配实现tracking
+
+六、 思谋
+    1. 传统视觉算法: 放射变换, 模板匹配, 二值化 做粗定位, 聚类/搜索等 做后处理
+    2. 分割model(hrnet), Transformer系(ssa,segformer,  reverse-att), 大模型convnext(训行业数据的pretrain)
+
+七、轻量检测模型
+    1. 百度: pp-yoloe
+    2. 百度: PicoDet(比pp-yoloe早): csp+pan,esnet加强特征提取能力, h-swish激活函数(mbv3也用了).
+             用了nas搜索esnet的结构, 虽精度小掉但推理快很多(降0.2%mAP,inference减少41.5%时延)
+    3. 阿里的yolox-pai: 
+        1. neck优化: 自适应空间特征融合ASFF,及变体ASFF_Sim. ASFF:PAN + SE attention
+                    GSConv轻量级卷积块降低计算成本.  利用DW(depth conv)降低neck的参数, 精度升但推理变慢(可以理解,DW就是inference不太友好的..)
+        2. head优化: tood思路, 解耦cls和res, 但又做了两者任务align(feature_map GAP再分别加到cls,reg分支). 
+        3. 工程上的优化, PAI-Blade. (trt,图优化等)
+
+1. c++
+    1. 虚函数: virtual
+        1. 有虚函数的类都会有个虚函数表 
+        2. 根据虚函数表, 该(基)类的指针or引用对象,根据表,找到要调用的function,实现多态.
+    不可为虚函数: 
+        1. 构造函数: 调用完后才会形成虚表指针 
+        2. 静态函数: 不属于类中任何对象/实例,不可this指针访问, 而虚函数靠的就是this 
+    析构函数不是必须是(虚函数): 父的析构定为虚, 则父删某资源子也会删. 
+                            父析构非虚, 则父删子不变
+    纯虚函数: 只定义没实现
+
+    2. 多态: 有父子关系,父的指针or引用对象,指向了子,则形成多态. 
+        (具体调用的function取决于父指向哪里, 且父子同名的function得参数相同.)
+
+    3. 面向对象的: 封装(还有俩是: 继承, 多态)
+        1. 代码模块化, 功能独立, 隐藏实现细节
+        2. 把函数和数据包围起来, 数据访问只能通过可信任对象和类进行, 不可信的则隐藏. 
+
+    4. static静态
+        1. 修饰局部变量时, 出函数体此变量仍有效
+        2. 声明函数, 则此函数不可变其他文件引用
+        3. 修饰全局变量, 则来自不同文件的重名变量不冲突
+
+    5. 智能指针:
+        1. 三种智能指针的区别:  unique_ptr, shared_ptr, weak_ptr
+        1. unique_ptr: 解决, 某些指针使用完, 没被释放带来内存泄漏, 会自行delete. 但多个unique_ptr不能指向同一块资源. 
+        2. shared_ptr: 相比unique_ptr可多个指向同块资源, 且引用计数来delete. 但出现交叉引用的话, 资源就一直放不掉, 因为引用值一直不会到0.
+        3. weak_ptr: 解决shared_ptr的引用计数漏洞, 引用对象时不计数, 开始使用资源时才会升级为shared_ptr. 
+
+    6. 左右值: 有名字的就是左值(可取址); 不能取地址的,没有名字的,就是右值(将亡值或纯右值)
+    [左值相当于地址值, 右值相当于数值值]
+            1. i++返回原来的值, ++i返回加1后的值 
+            2. i++为右值, ++i为左值  
+            i = 0
+            ++i = 1 正确
+            i++ = 5 错误 i++是右值,不可再被赋值
+            int *p1 = &(++i)   正确, 左值可以取址
+            int *p2 = &(i++)   错误, 右值无法取址
+
+    7. 构造函数和析构函数: 
+        1. 构造: 定义对象后自动执行,无需调用,无返回类型.(用户也可自行实现,可接参)
+        2. 析构: 清理周期结束的对象,一样无需调用系统自动做. 也可自行写可接参
+        构造初始化顺序: 基类 -> 成员类 -> 派生类
+        析构初始化顺序: 派生 -> 成员 -> 基类   (父构,子构,子析,父析) 
+        3. 构造函数 可以是私有的
+
+    8. 重载和重写:
+        1. 重写出现在父子间
+        2. 重载出现在同一个类内,方法名相同但参数不同(个数顺序类型)
+
+    9. 指针和引用
+        1. 引用: 不可为空一定要初始化(因为它是某个对象的别名),随被引用对象变,不可直接变化ta(放在左值就会报错)
+        2. 指针: 可变,可为空,本身是个对象有地址,它的内容是:某对象的内存地址
+
+    10. 传参: 指针传or引用传(形参和实参)
+        指针传: 形参指向实参的指针,存的是地址; 改变形参并不会影响实参 
+        引用传: 改变形参会影响实参
+
+    11. 数组和链表:
+        1. 数组内存连续, 链表内存不连续(存当前节点和下一节点信息)
+        2. 数组优于链表的点: 
+            1. 省内存,不用每个元素存下一元素的信息;
+            2. 可根据索引快速访问: 因为是连续存放, 故可计算索引O(1)访问. 
+            (链表不连续存放只能从头开始走到想访问的位置)
+        3. 链表较之数组的优点:
+            1. 插入/删除快, 直接修改目的节点. (数组插入/删除得移动后续元素的位置)
+            2. 内存利用更灵活. 数组插入需重申原内存*2的空间, 容易带来内存不足.
+
+    12. vector和数组
+        1. init数组要指定长度不可变, vector无需指定长度可变
+        2. 名字: 数组名代表数组首地址,名字还是个指针, vector的名就是名
+        3. STL中vector的:  
+            1. 连续存储, 支持指针访问; 迭代器:start,finish,   还有个end_of_storage,指向当前可使用空间的最尾部,capacity概念
+            2. push_back插入快慢不定, 没达到capcity则快,直接放尾, 
+            3. 达到了则, 另申一块(原*2)的空间, 将原内容拷贝好,放新元素,放插入点后原元素.   最后释放原vector空间. (so此过程原迭代器会失效) 
+            4. 清空vector元素: clear(), 释放内存: swap()  
+            swap(): 构建临时对象再swap交换, 交换后临时对象得到原对象, 随即被析构内存释放.
+            5. pop_back(): 销毁最后一个元素,不释放内存
+            6. size(): vector内含有的元素个数; capacity()不扩容前可存储的最多元素个数
+            7. empty()判断vector是否空
+            8. a.reserve(20) 给vector扩容到20,已存入的元素无任何改变
+
+    13. hashmap散列表: 平均查找时复:O(n)  HashMap线程不同步(即不安全)   比map查找快, key无序 
+        1. 每个结构体包含: key,value,next(指向下一发生散列冲突的记录)
+		2. map: 红黑树实现, key默认升序 
+
+    14. 内存泄露
+        1. 检测程序运行时内存耗用情况,出现长期耗用贼大,则debug排查是否泄露.
+        2. 结束生命周期后没被delete
+
+    15. 内存管理 
+        1. new创建对象(调用构造函数): 无需指定大小, 返回对象的指针, 对象类型明确.
+        对应的delete用来删除对象(调用析构函数)
+        2. malloc创建对象(不调构造[即不初始化]), 要指定大小, 返回void*, 后续需转换类型. 
+        对应的free删除对象, 也不调析构
+        3. new可被重载(类内重复), malloc不能
+        4. malloc, realloc, calloc: 返回类型都是void*
+            2. malloc: 内存堆上申请连续的, 大小为size个字节 
+            3. calloc: 内存堆上申请连续n个空间, 每个空间size个字节 会初始化
+            4. realloc: 向内存申请一个newsize空间 (23内存不够则会开始4)
+
+    16. 线程池: for循环内.start()开始各子线程
+        1. 任务数<核数, 依次增加核线程
+        2. 任务数>核数, 任务加入队列, 
+        3. 线程池(队列)都满了, 进入饱和策略
+            1. 丢新提交的任务
+            2. 抛异常 
+            3. 丢池内最老任务
+            4. 某些任务回退到调用者
+        4. 多线程通信: 共享内存, 互斥锁, 死锁 
+            1. 共享内存: 各线程共同操作某数据,需做数据"保护"("互斥锁": lock(), unlock)
+            2. 死锁: 出现>=2个互斥量, 均在等待释放则无法工作
+
+    17. const有数据类型(数据安全), #define无数据类型不安全 
+    18. 结构体与类: struct, class 
+        struct默认权限 public
+        class默认权限  private (更安全)
+    19. 全局变量: extern修饰(也可不用), 定义在'{}'外
+    20. 内存对齐
+        以4为倍数内存开始读写 (计算机以字节为单位, 分4 8 16 32等, so需要以4为单位对齐)
+        1.基本类型的对齐值就是其sizeof值;
+        2.结构体的对齐值是其成员的最大对齐值;
+        3.编译器可以设置一个最大对齐值, 实际对齐值是该类型的对齐值与默认对齐值取min
+    21. 堆(先进后出)栈(先进先出)
+    22. 稳定的排序: 冒泡, 插入, 归并, 基数 
+    23. 虚拟地址(各进程空间保护)和物理内存
+        1. 物理内存有限, 故引出虚拟空间: 把部分内容放虚拟空间, 排序调度到物理上使用
+        2. 虚拟地址: 每个进程有4G虚拟地址空间,均从0编址.程序直接操作虚拟地址空间, 相同编址但内容不同,保护进程安全.
+    24. 内存分区:
+        1. 栈区:函数参数和局部变量
+        2. 堆区:malloc/new手动申请
+        3. 全局区(静态区):全局变量, 静态变量
+        4. 常量存储区: 存放常量不允许修改
+        5. 代码区:存放二进制代码
+    25. inline: 解决: 频繁调用的函数大量消耗栈空间(栈内存)的问题
+        函数[定义]用inline修饰 (声明时用无效)
+        define是预编译时处理的宏,只进行简单字符替换,无类型检查
+        inline是编译时的内联,有类型检查,编译器有权拒绝内联
+    26. mutable: 解除const, 恢复可变 
+    27. 继承机制的,[对象,引用,指针]转换: 向下自动转换(子直接抄父) 向上转(父抄子)需手动加机制
+    28. find()返回元素在map中的index, 没找到则返回end() 
+    29. 悬空指针: 指向的内容被释放; 野指针: 没被init的指针
+    30. 判断两个浮点数是否相等? abs(diff)<thres  
+    31. cout和printf: cout是ostream对象,安全; printf是函数,需参数,无类型检查不安全
+    32. 定义和声明: 声明不分配空间,可多次; 定义分配空间只1次
+    33. 迭代器++it, it++: 前者返回引用, 后者返回对象(产生临时对象so效率低)
+    34. C++异常处理: try, throw(抛出), catch(捕获)   可不在当前位置马上处理, 捕获or抛出
+    35. strcpy和memcpy: 前者只复制字符串,无长度限制,可能溢出;  后者可复制任意对象,可自定义复制长度
+    36. volatile: 编译器对volatile修饰的代码不可修改(不再做优化)
+    37. this调用成员变量: 对成员的访问都是用this,so可查看this指针哪个对象在调用. this指针先入栈,然后函数参数入栈,最后函数return值入栈
+    38. 回调函数: 允许用户, 把函数的指针, 作为参数给另一个函数 (允许函数调函数)
+    39. 先于main运行的代码: 全局变量/对象,静态变量/对象,的构造函数, 空间分配, 赋初始值 
+    40. switch和if: switch的条件必须是:整型,枚举变量,字符型so高效; if无限制但效率低点
+
+
+2. python
+    1. import 加不加点
+        加点是绝对导入, 即c2 import 了c1, c3 再来import c2的话, 也可顺利使用到c1
+        不加点, 则只是相对导入, c3 import c2, 会出现找不到c1的问题. 
+	2. is更严格, 检查value和地址是否一致, ==仅检查value是否一致
+	3. 装饰器: 
+	def logger(func):
+	    def wrapper(*args, **kw):
+	        print('主人, 我准备开始执行: {} 函数了:'.format(func.__name__))
+	        func(*args, **kw)
+	        print('主人, 我执行完啦.')
+    	return wrapper
+	@logger
+	def func(a,b):
+	    print("{}+{}={}".format(a,b,a+b)) 
+	func(100, 20)
+	装饰器: 不改变源函数的情况下添加功能, 场景: 插入日志, 计时.
+	迭代器: __iter__(), __next__()两个方法: 返回对象本身, 返回下一个对象. (迭代器就是每个元素依次计算出,有前后顺序. 下一个值依赖上一个值)
+	生成器: 特殊的迭代器, 使用yield关键字一个个"吐"出元素
+
+	4. return 和 yield 
+	yield针对list等循环数据, 可依次一一返回数据;
+	return只能在循环结束后一次性返回所有结果. 
+	(类似py2中的xrange和range, xrange是一个个的生成, range是一口气生成. python3合并了这俩统一为range, 内存更友好.)
+
+	5. map(): 参数1: 函数or数据类型, 可对参数2做对应的函数运算or数据类型变换
+	py2的map()直接返回(可迭代)结果, py3则返回一个迭代器.(得手动list一下才可看到具体结果.)
+
+	6. transpose(): 矩阵转置; reshape(): 打散再重排, 重排规则可指定(最内维度开始还是最外维度开始)
+
+	7. python常见数据结构: list, tuple(静态数组不可变), set(), dict(), numpy的Ndarray, Matrix, pandas的DataFrame
+	dict按value排序: sorted(dict.items(), reverse=True, key=lambda x:x[1]) [reverse=True降序, False升序]
+
+	8. * 星号: 
+		1. * 单星号: 任意长度的可迭代数据
+		2. ** 双星号: 函数传参; 合并俩字典
+        args 和 kargs: 都是用来给函数做 [不定个数的参数传递].
+		1. args: 传无键值的, string, list之类的
+		2. kargs: 传有键值的, 如dict
+		3. your_function(arg, *args, **kargs)
+
+	9. python深浅拷贝: 
+        1. 内外两层, 内层为可变对象时, 浅拷贝内层地址不变(随原元素一起变); 深考虑内层地址也变(不随原元素变)
+        2. 外层地址倒是都会变化. 
+
+	10. Python的内存管理: 引用计数; 垃圾回收; 内存池  
+		内存池(预先申请一块空间,有内存需求则往这里使用,不够了再申请新的块. 避免零碎的内存申请需求.)
+		python垃圾回收: 回收无用的内存空间(没对象指向的内存)
+			python解释器来做这个事:
+			1. 引用计数  为0了就是无对象指向了, 就是垃圾, 回收这块内存!
+			2. 标记清除: 内存快占满时, python会暂停所有程序, 然后从0开始对所有内存中的数据扫码打标记, 并一次性删除被标记上的数据.
+			3. 分代回收: 新, 青, 老
+			   新创建的对象都放在新, so创建前都会查新满没满; (满了就会开始启动垃圾回收, 新里面剩下没被回收的, 就放入青)
+			   (青到老的维护也是一样)
+
+	11. python 的 print加不加括号
+		python3加, 因为print是一个内置函数,有多个参数
+		python2不加, 因为print是一个语法结构
+
+	13. python new 和 init 区别:
+		1. new: 实例创建前, 调用, 返回此实例对象.  
+		2. init: 实例创建后, 调用, 给一些初始值做初始化. 
+
+	14. 下划线:
+		1. _a: 前单下划线: 保护内容, 仅允许内部使用or子类继承, from xx import xx时不可被导入
+		2. __a: 前双下划线: 较之1更严格, 连子类都不可继承, 私有仅本类使用.
+		3. __a__: 前后双下划线: 为python的特殊方法
+		4. a_: 后单下划线: 避免和python关键词冲突, 无其他含义.
+	
+	15. lambda x,y: x*y
+
+	16. global 修饰 全局变量
+	
+	17. python sort函数实现原理: Timsort 
+		1. 先找到list已排好序的块
+		2. 合并这些块   (有点像归并排序)
+
+	18. callable: 检查是否可被调用
+	
+	19. 正则表达式： re.match(pattern, string, flags = 0)
+	
+	20. GIL全局锁: cpython的特性, 保证一个进程(processing)中同一时刻只有一个线程在执行(避免多个线程间数据干扰, 垃圾回收等带来执行错误.) 
+	线程释放GIL:
+		1. 线程进入IO操作之前会主动释放(so, io密集型任务适合用多线程)
+		2. 解释器不间断的运行了1000字节码(py2)或 15毫秒(py3) 后会释放GIL
+
+	21. 多线程: threading   cpu io密集场景下使用   m个cpu, 线程数可: m+1、2m、io操作很多的话可设10m
+	    多进程: from multiprocessing import Process  计算/cpu密集型场景
+	python多线程怎么占满核? (不可实现, 需要多进程,且尽量每个cpu分一个进程)
+	线程, 进程, 怎么通信?
+		1. 多进程通信: queue()进程间做通信, pipe()单个进程内通信,两端分别负责,读写.
+		2. 通信: 锁: lock(), rlock(); .event()设置线程等待; .main_thread()返回主线程
+
+	22. numpy矩阵乘法: np.matmul() 
+
+    23. 类方法, 静态方法, 实例方法
+        1. 实例方法: 类名调用实例方法时, 需手动给self传参
+        2. 类方法: @classmethod修饰, 无需手动传参, 会自动把cls值给到ta作为参数
+        3. 静态方法: @staticmethod修饰, 写在类内的函数, 和一般函数没啥大差别. 
+
+3. 一些概念:
+    FLOPs: 浮点运算数, 衡量算法/模型的复杂度, (flops和推理快慢不正比)
+    MAC: 指显存/内存访问量, 特征图,权重等占用的大小.  (shufflenetv2的cin=cout就为了最小化mac)
+    QPS: queries per second, 把单块GPU占满,每秒能处理多少张图片
+
+4. 传感器:
+    1. 运动感知: 定位系统, 惯性传感器, 轮速计, 激光雷达, 相机
+    2. 环境感知: 激光雷达, 相机, 超声波雷达, 毫米波雷达
+    雷达主要问题是成本高, 相机适合大量目标的场景,纹理细节信息多但缺乏depth信息
+
+5. 部署框架: Service部署和SDK部署, 我只接触过sdk
+    1. pipline: PyTorch - ONNX - ONNXRuntime/TensorRT - c++/python部署sdk
+        ONNXRuntime: 微软维护的跨平台推理加速器   (也有ONNXRuntime-GPU)
+    2. dl模型转onnx:  可将动态输入改为静态
+        1. op->算子 一对一转
+        2. op没有现成的算子, 则op->算子一对多
+        3. 根本没开发你这个op相关的任何算子, 报错! 自己实现去吧(如deform形变卷积)
+        4. 自定义onnx算子 onnx有开放接口: 下面是deform的栗子: 
+            定义: @parse_args("v", "v", "v", "v", "v", "i", "i", "i", "i", "i", "i", "i", "i", "none") 
+                def symbolic(g,input,weight,offset,mask,bias,stride_h, stride_w,pad_h,pad_w,dil_h,dil_w,n_weight_grps,n_offset_grps,use_mask): 
+                    return g.op("custom::deform_conv2d", input, offset) 
+            注册: register_custom_op_symbolic("torchvision::deform_conv2d", symbolic, 9) 
+            自行实现 
+        5. 修改onnx节点  (加法变减法 啥的)
+            model = onnx.load('linear_func.onnx')  # 读入
+            node = model.graph.node 
+            node[1].op_type = 'Sub'   # 修改为加法
+            onnx.checker.check_model(model) 
+            onnx.save(model, 'linear_func_2.onnx')  # 存好改后的onnx
+        5. 精度对齐 (pytorch和onnx结果对齐) 
+            1. 设置中间节点调试,对齐各个中间结果
+            2. 对不齐的一些原因:
+                1. 输入维度顺序: chw 还是 hwc
+                2. rgb bgr ? (cv2是bgr, PIL是rgb)
+                3. normalize参数 要和 训模型时设置的一致 (mean,std一致, or直除255)
+                4. 模型跨平台,出现精度变化(onnx->ncnn手机端部署平台, onnx->paddle等)
+                5. fp32,16 带来不齐 
+    3. paddle GPU部署: paddle模型(包含模型结构和参数) -> paddlslim量化/剪枝/蒸馏 -> 部署(服务器,serving网页端,移动边缘端)
+	   paddl-inference包括: 算子融合(多个op变一个), 内置了高性能的CPU/GPU Kernel, 子图集成TensorRT加速, 内嵌slim
+	4. 部署会遇到的问题:
+        1. opencv的dl模块不支持三维池化: cv2.dnn.readNet('xxx.onnx') cv2读取onnx模型时出现不兼容
+        2. torch转onnx,paddle等算子不兼容 (torch的op(如:卷积池化)转为onnx的算子) 	
+            [敏感图像分类遇到过, pytorch转onnx,卷积的一个函数我调用的比较非主流,就卡主转失败了]
+	5. MKLDNN加速: 指令级加速, 编译时可选 
+	   卷积计算加速, 层融合(conv+conv+relu -> conv+(con+sum+relu))
+
+6. 部署优化:  输入分辨率小点肯定更快,但可能直接影响精度; 参数量,参数大小也影响推理速度; 
+	1. 网络设计层面: 轻量+好部署 
+		1. CSPNet 过渡层:1x1Conv+池化(也可无池化)拆分开参数密集的Dense-block, 减少参数同时截断梯度使信息更丰富, cnn学习能力就上去了啊~ 
+			DenseNet升级版本, 改进密集块和过渡层的信息流. 
+			两种方式: 1. feature_map先concat再过渡, 梯度可复用
+					 2. 仅在dense分支过渡,再concat, 梯度截断不会重复信息.
+			1,2结合使用,使梯度差异最大化,提升CNN学习能力, 且参数也减少了. 
+
+        2. mobilenet: 
+	        1. mobilenetv1: 深度可分离卷积; 分辨率scale; channel scale
+			2. mobilenetv2: 主要提出[倒残差结构]! resnet的残差结构是两头channel多中间channel少, 
+			   v2相反两头channel少中间channel大(考虑的是channel小使用非线性激活函数易丢失信息, so倒残差的中间用relu, 网络最末层用线性激活Linear) 末层维度很小
+			3. mobilenetv3: 基于12, 加入SE注意力block(chw池化变c,然后经过两fc, 第一个fc为c/4, 第二个为c), h-swish代替swish激活函数.
+				swish=x/(1+e^-x), swish'=swish(x)+sigmoid(x)*(1-swish(x)),类sigmoid状.
+		3. shufflenetv2: v2的两个1x1卷积不用分组卷积: 一开始的通道切分已完成分组效果,再就是遵循少用分组减少mac的目的.
+			1. 提倡cint=cout最小化mac; 
+			2. 适当数量的 分组卷积(Channel-Split: 分支间信息交互,类csp) 分组太多并行度又差了.
+			3. 减少碎片化算子(单个conv or pool个数太多,使GPU并行力无法施展加速); 
+			4. 合并多个"逐元素"计算(add这种访存密集型). ReLU,AddTensor,AddBias这些, FLOPs小但MAC大  
+        4. VoVNet: 也是基于Densenet的优化
+            1. 堆叠几个OSA就可了, 精简模型
+            2. OSA: l1,l2,l3..分别单独连接到最末层即可(dense中是, l1->l2,累加后->l3,..一直到末层,参数逐层积累.)
+   		5. yolo3: 一个gt只用一个正样本检 9个中剩下的8个可设置为忽略样本(虽然不最佳但也很接近,标为负不ok)
+            1. Darknet: 3x3,1x1卷积,残差连接(三层fm融合时用), [无全连接参数少!]
+            2. 最末三层fm互相融合(下采样8,16,32倍), 每个pixel出三个anchor
+            3. 训练按照最大iou寻找正例(每层3个anchor3层fm则9个, 9个中最大iou为此gt正样本)
+   		6. 多个小卷积代替一个大卷积(3个3x3 -> 1个7x7), 甚至1x3 + 3x1 代替3x3(参数减少但可能一点性能下降)
+
+   	2. 工程方面: 模型转换过程中,一些框架就主动做了模型优化(实现方式不同会有些冗余,可被优化掉; 新框架可能对部分计算做了更优的实现,也就自然完成优化了)
+   	    减小需遍历的节点(算子融合, 剪枝, 稀疏, 蒸馏); 
+        减小在单节点上的时间(低精度, 矩阵分块多线程计算/Winograd,gemm矩阵加速, cuda实现加速)
+	      1. 算子融合/替换: 
+	      	1. 如cbr -> (cb)r, Rep重参处理(1x1,3x3,bn组合为一个3x3) Rep最后只剩下: relu和3x3conv
+	     		conv+bn合并例子: 
+				1. train过程中, 移动平均处理, 把train上的bn两个参数累计好
+					a_i = (1-k)*a_i-1 + k * a_i 
+				2. bn的参数维度: 1x1x1xc, 即不同channel有不同的alpha, beta参数, [so,layer的bn参数为: 2c]
+					conv+bn合并: output = (conv_w * input + conv_b) * bn_w + bn_b
+					output = input*conv_w*bn_w +  bn_w*conv_b + bn_b
+					so新w: conv_w*bn_w, 新bais: bn_w*conv_b + bn_b
+	        2. 多个conv计算后再concat -> conv参数先concat再做一次conv即可 (减少计算次数,中间显存也省了)
+            3. average-pooling转conv, conv-value为1/nxn  (成了卷积就可上卷积矩阵加速了~) 
+               (访存密集,变,计算密集,就可优化计算来加速了):  matmul+add -> gemm 
+	      2. 低精度推理(fp32,16,int8): 高精度一般对梯度重要,weight权值倒是还好. so推理时降低精度不会损失太多性能且可加速.
+	      
+	      3. 优化矩阵计算: 卷积一般是: im2col+gemm or 更高阶上Winograd
+	      	1. gemm: 分块加大并行度. 朴素矩阵计算是: A的一行对应点乘B的一列得到C中一个点
+	                 块状并行起来是: A的N行对应点乘B的N列, 得到C中一块点
+	        2. Winograd: 通过增加加法操作来减少乘法操作,从而实现计算加速
+                卷积stride等于2时加速收益不高
+                深度可分离卷积用Winograd不划算
+                Winograd卷积由于一些系数是除不尽的,s有一定的精度损失
+                tile块(sub_bin)越大,加速效果越好
+
+模型压缩: <	剪枝通用性强, 什么任务都能上, [性能和效率找平衡];
+		蒸馏适用部署小但任务难的场景, 得精细的蒸.  (感觉自驾可用的比较多)
+		量化受硬件支持否的 约束较大, 一般来说稀疏可以砍掉一些冗余, 但性能也许损失.>
+
+	      4. 知识蒸馏: 让student输出p 和 teacher输出 q 近似, 仅更新student的参数.
+	         loss = CE(y, p) + alpha * CE(p, q)
+	         softmax-T: exp(zi/T) / sum(expzj/T)
+	         T=1为softmax, T接近0,分布近似one-hot, T越大loss分布越平缓 
+	         T的作用类似标签软化, sharpness的one-hot到平滑些的分布(类似label smooth)
+	         训好的teacher预测值q是偏硬的, 加上T可软化, 从而提供更多信息给student 
+	         (teacher能学到的信息更细粒度, 信息更全面) (最大值仍指向真类, 其他index上的值小点,提供些类别相关信息) 
+	         想要平滑程度大则T取大点, 蒸馏过程T逐渐降温到=1
+	         小model先训到80pipline打通, 再训个大model到95+. 大的蒸小的让小的精度上去.
+	        so知识蒸馏的两个参数: T, alpha  
+
+	      5. 剪枝: (训好的大模型剪枝后, 再让slim model train会数据适应下)
+	      	1. 砍一些channel, block, 全连接替换为conv, featuremap(随机/指定)mask/scale.
+	      	2. 稀疏: 参数值太小/梯度太小,丢弃, dropout也是一种稀疏思想 
+
+	      6. 量化(在线的, round不可导问题): 
+	      		1. DSQ傅里叶拟合round
+	      		2. QuantNoise:  随机量化一部分参数,剩余的梯度正常传递(图像压缩里也有量化想换的处理,ta采用的是加一些随机噪声来弥补)
+            离线量化: 
+            1. 量化conv-conv对 (conv的参数大小做scale)
+				r1 = compute_range(conv1_weight)  
+	            r2 = compute_range(conv2_weight)
+	            s = r1 / torch.sqrt(r1 * r2) # 计算缩放因子
+	            weight1 = weight1 * (1/s)  # # 根据conv的参数range计算出的缩放因子, 作为合并后conv的权重
+	            weight2 = weight2 * s
+		  	2. pre-layer量化: 整层tensor共用一个scale和zero point
+		  	3. per-channel量化: 每个kernel设计scale参数 
+
+		  7. cuda拓展: 链式法则推导参数梯度
+		   <cuda适合做计算密集型任务,如nms中的iou计算
+            逻辑密集型任务如nms排序box分数, 在cpp内完成即可> 
+		 	1. 举栗pytorch扩展cuda:
+                1. pytorch端写main代码, 写模型主体
+                2. cuda实现写在.cu, .h(声明有文件), 在kernel函数中实现功能  (iou计算)
+                3. .cpp: 将CUDA程序封装成py端(torch,tf,paddle等)可调用的库.so (pybind通信, box分数排序等逻辑型运算也写在这) 
+                4. main处PyTorch调cuda, 即时or离线编译均可, 即时例子如下: 
+                    from torch.utils.cpp_extension import load  # cpp_extension接口导入并编译cuda功能
+                    cuda_module = load(name="add2",
+                    sources=["add2.cpp", "add2.cu"], verbose=True)
+                5. 三种可选编译方法:
+                    1. JIT: just-in-time 运行python时再去编译, 上4. 
+                    2. Setuptools: 写成setup.py, 调用CUDAExtension编译. python3 setup.py install
+                    3. cmake编译, 写CMakeLists.txt 
+                6. 测试cuda部分的时间: cuda异步线程同步,执行,返回cpu
+                    torch.cuda.synchronize()
+                    start_time = time.time()
+                    func() 
+                    torch.cuda.synchronize()
+                    end_time = time.time()
+                7. cuda-nms还可优化的点:
+                	1. iou矩阵可只计算上半对角(下半复制下即可是重复的)
+                    2. 位运算存mask矩阵(计算iou得到的mask矩阵)
+                    3. Grid -> Block -> thread (ThreadsNumPerBlock经验值: 512/1024)
+
+扩充知识点:
+    量化(权重,激活值都int8,少量参数int32): 用PyTorch的FX模块, TinyNeuralNetwork等框架完成量化. https://zhuanlan.zhihu.com/p/38328685
+        1. 线性量化 (曲线变锯齿 的感觉)   也会有对数量化.
+        2. 权重范围越大,同量化位数下,误差越大.
+        3. 将推理阶段的量化操作迁移到训练阶段  pytorch的混精度训练

@@ -2,4 +2,5 @@
 lines = open('./code.py').readlines()
 lines = [a for a in lines if a[:4]=='def ']
 for line in lines:
-    print(line) 
+    print(line)
+print('总题数: ', len(lines)) 
