@@ -1763,6 +1763,16 @@ def minPathSum(grid):
 grid = [[1,2,3],[4,5,6]] # [[1,3,1],[1,5,1],[4,2,1]]
 print('左上到右下最短距离和: ', minPathSum(grid)) 
 
+# 判断两线段 是否相交
+def fun(a,b,c):
+  return (c[1]-a[1])*(b[0]-a[0])>(b[1]-a[1])*(c[0]-a[0]) 
+def line_merge(a,b,c,d):
+  # 线段另一点是否在其他三个点同边  
+  return fun(a,c,d) != fun(b,c,d) and fun(a,b,c) != fun(a,b,d)
+a, b = [0,0],[1,1]  # line1
+c, d = [0,1], [1,0]  # line2
+print('线段是否相交: ', line_merge(a, b,c,d))
+
 # 三角形中的最小路径和 
 def minimumTotal(triangle):
     lens = len(triangle)  # 三角形的行数 
@@ -2354,6 +2364,34 @@ def mergeKLists(lists):
     # main code
     return merge(0, lens-1)
 
+# 合并k个有序数组   归并
+def Sort_list(Left, Right):
+    res = []
+    a = 0
+    b = 0
+    while a < len(Left) and b < len(Right):
+        if Left[a] < Right[b]:
+            res.append(Left[a])
+            a += 1
+        else:
+            res.append(Right[b])
+            b += 1
+    while a < len(Left):
+        res.append(Left[a])
+        a += 1
+    while b < len(Right):
+        res.append(Right[b])
+        b += 1
+    return [res]
+def MergeSort(nums):
+    if len(nums) <= 1:
+        return nums
+    mid = len(nums) // 2
+    Left = MergeSort(nums[:mid])
+    Right = MergeSort(nums[mid:])
+    return Sort_list(Left[0], Right[0])
+print('合并k个有序数组: ', MergeSort([[1,3,6],[1,2],[2,3,4]]))
+
 # 链表中的两数相加: 先把俩链表都反转, 然后对应位相加, 有进位则往next位放
 # 全部算完之后, 再反转回来   (因为链表的next否是往后走的, 但加法进位的原则都是往前走, so需要反转.) 
 def reverse(self, head):  # 反转链表
@@ -2778,6 +2816,34 @@ def topk_(s, k):
     return min(topk)
 print('第k大, 维护最小堆做: ', topk_([3, -1, 2, 10, 55], 3))
 
+# 快排思路, 数组k个最小
+def partition(nums, l, r):
+    max_key = nums[r]
+    i = l - 1
+    for j in range(l, r):
+        if nums[j] <= max_key:
+            i += 1
+            nums[i], nums[j] = nums[j], nums[i]
+    nums[i + 1], nums[r] = nums[r], nums[i + 1]
+    return i + 1
+def randomized_partition(nums, l, r):
+    i = random.randint(l, r)
+    nums[r], nums[i] = nums[i], nums[r]
+    return partition(nums, l, r)
+def randomized_selected(arr, l, r, k):
+    ind = randomized_partition(arr, l, r)
+    num = ind - l + 1
+    if k < num:
+        randomized_selected(arr, l, ind - 1, k)
+    elif k > num:
+        randomized_selected(arr, ind + 1, r, k - num)
+def main_quick_topk(arr, k):
+    randomized_selected(arr, 0, len(arr) - 1, k)
+    return arr[:k]
+# 时复: klogn
+print('快排思路找最小k个数, 比快排还快: ', main_quick_topk([16, 9, 9, 20, 2, 3, 2, 13, 11, 14], 5))
+# 快排最好: nlogn, 最差: n^2 
+
 # conv2d  二维卷积
 import numpy as np 
 def conv2d(Input,kernel,padding=0,stride=2):
@@ -3169,6 +3235,32 @@ def killProcess(pid, ppid, kill):  # 有点类似有向无环图的所有可能�
     return res 
 pid, ppid, kill = [1,3,10,5], [3,0,5,3], 5
 print('需要kill掉的进程: ', killProcess(pid, ppid, kill))
+
+# 二叉树中最长连续序列  升/降序均可
+class Solution:
+    def longestConsecutive(root):
+        def longesetPath(root):
+            nonlocal maxVal
+            if root is None:
+                return [0,0]
+            inr,dcr= 1,1  # 初始化上升下降序列的长度
+            if root.left is not None: # 处理左孩序列
+                l = longesetPath(root.left)
+                if root.val == root.left.val +1:
+                    dcr = l[1] +1
+                elif root.val == root.left.val -1:
+                    inr = l[0] +1
+            if root.right is not None: # 处理右孩序列
+                r = longesetPath(root.right)
+                if root.val == root.right.val +1:
+                    dcr = max(dcr, r[1] +1)
+                elif root.val == root.right.val -1:
+                    inr = max(inr, r[0] +1)
+            maxVal = max(maxVal,dcr + inr - 1) #合并上升下降序列长度
+            return [inr,dcr]
+        maxVal = 0
+        longesetPath(root)
+        return maxVal
 
 # 二叉树向下的路径 节点之和 等于 target
 class Solution:
@@ -4258,6 +4350,50 @@ def minFlipsMonoIncr(s):
     return min(dp[-1])
 s = '010110'
 print('0在1前面的最小翻转次数: ', minFlipsMonoIncr(s))
+
+# 把所有0移到数组前面, 1移到数组后面: 空复O(1), 时复O(n)
+# 左右指针 
+def moveZeroes(nums):
+    zeros_index = 0  # 不断往后, 扫描到元素1就把元素放尾部去
+    for i, num in enumerate(nums):
+        if not num:  # 是0, 则0要放到前面去 
+            nums[i], nums[zeros_index] = nums[zeros_index], nums[i]
+            zeros_index += 1
+    return nums
+print('把所有0移到数组前面, 1移到数组后面: 空复O(1), 时复O(n)', moveZeroes([1,0,1,0,1,0,1,1]))
+# 0和非零数组, 把0放到后面去
+def moveZeroes(nums):
+    j = 0
+    for i, num in enumerate(nums):
+        if num != 0:
+            nums[j] = num 
+            j += 1  # j在统计非0的个数 
+    for i in range(j, len(nums)):
+        nums[i] = 0
+    return nums 
+print('0和非零, 把0放到后面去',  moveZeroes([0,0,1,2,2,0,3]))
+
+# 有序数组的平方  使升序  (原数组有正有负, so平方后大小会变化)
+def sortedSquares(nums):
+    lens = len(nums)
+    i,j,k = 0,lens-1, lens-1  # ij数数组的左右指针, k是结果数组的指针,从后往前
+    ans = [-1]*lens
+    while i<=j:
+        lmm = nums[i]**2
+        rmm = nums[j]**2
+        if lmm>rmm:
+            ans[k]=lmm
+            i += 1
+        else:
+            ans[k] = rmm
+            j -= 1
+        k -=1
+    return ans
+print('有序数组的平方: ', sortedSquares([-10, 0,3,11]))
+
+# 等差数列中缺失的数字
+def missingNumber(arr):   # 注意是lens+1 缺失了一个数啊 
+    return ((arr[0] + arr[-1]) * (len(arr) + 1) // 2) - sum(arr)
 
 # 子序列的数目  不同的子序列
 '''
