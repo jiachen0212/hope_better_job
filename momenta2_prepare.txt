@@ -1,0 +1,143 @@
+1. 目标检测:
+	fl = - alpha * (1-pred)^r * log(pred)  			y = 1
+			-(1-alpah) * pred^r * log(1-pred)          y = 0
+	r=0.5,1,2,3,5.  fl增加难样本(pred小)的loss, 抑制简单样本(pred大)的loss.
+	
+	efficientdet:
+	EfficientNet: BiFPN(高效多尺度特征融合), 融合时候设置不同weight(特征or通道做sotfmax得到权值)
+	efficientdet: 基于BiFPN, 再加一个Box prediction net(cls, reg解耦, 都用两层conv). 
+
+	正样本匹配: tal, atss, simOTA
+	TAL: 使分类精度和回归精度保持正相关, nms就不会冲突了.  (Task Alignment Learning)
+		1. 计算alignment metric = score^r * iou^beta  
+		2. 为每个gt选k个候选点, 这k个点都要在gt box内(内是因为: ltrb都只能是正值,so anchor-point不能出gt框)
+		3. 某个anchor-point和多个gt都相关的话, 取iou最大的那个gt作为ta的gt 
+	ATSS:  参数k 
+		1. 每个gt, 在各个特征层上找距离最近的k个候选box(gt和box的中心间距离): layers*k 
+		2. 计算1所得boxes与gt间的ious, 算iou的mean,std. 则自适应iou阈值t=iou_m+iou_v. t筛一遍1的boxes.
+			iou_m起筛选高水平box作用, iou_v起剔除非最佳检出层作用
+			(v小则box水平集中t不变太大;v大则好的box集中在某层,t变很大筛选更严格)
+			实现自适应选择最佳检出层. 
+		3. 2处理后的boxes的中心是否落在gt内, 是,则把box赋给这个gt作为正样本. (box对多个gt,选iou最大的那个)
+
+	simOTA: 自动决定每个gt要从哪层特征图来检测(通过iou+cls排序就实现)
+		1. 收集所有特征层: box中心是否在,以gt中心为中心的某圆范围内.  
+		2. 加权box和gt间的iou和cls-loss, 得到各个box的综合分值
+		3. 确定gt需要的正样本个数: gt的top10iou相加. (某个gt和box的iou都是0.2, 0.2*10=2,需要2个正样本)
+		4. 按照2中的分数, 排序选正负样本即可. 
+
+	ciou, diou, SkewIOU
+		1. giou = iou - (1- (a并b)/c) c是最小包含ab面积.
+			      (a并b)/c越大, 则pred的冗余越小, 整体giou值越大, 合理.
+		2. diou: 缩小box间的距离, 加入俩box中点的distance, 作为处罚.
+		3. ciou: 基于diou, 还考虑box间宽高比是否一致, 加入处罚.
+		4. SkewIOU: 对角度敏感, 轻微角度变化也可带来loss代价.
+			ab互相包含的点, 放入set_ab, set_ab三角化可计算出面积
+			skewiou = area(set_ab) / {area(a)+area(b)-area(set_ab)}
+
+	数据增强:
+		1. yolo系: cutout(全零填充正方形遮挡)
+		   1. 遮挡,提升模型提特征能力: 
+		      1. mixup(不同目标addweighted在一张img)  y1,y2也一样weighted加权, y是one-hot的 
+			  2. 随机mask遮挡擦除,   
+			  3. Mosiac: 4图变1图, 每张图内的instance变多, 且引入重叠性, 加强(重叠目标检出鲁棒性)
+			2. 天气场景模拟:
+			  1. RandomDistort随机亮度/对比度/通道顺序等扰动    
+		    3. 针对小目标aug
+		      1. randomexpand, 右+下扩充原图,再resize回原尺寸(使目标相对原图变小) 
+
+	小目标检出:
+		1. FPN or 金字塔等多尺度结构 + PAN(深至浅融合+浅至深融合), concat自适应目标层检出
+		2. 多一些全局信息(GAP+fc+sigmoid), 加入attention. 更多的上下文对大小目标出现遮挡场景友好. (DETR中做了可视化展示.)
+		3. 放大input size or 对图像做crop,使小目标相对crop后的图像[不那么小]. (滑动窗切得小图s,再做分割/检测)
+		4. randomexpand: 让原本的大目标aug处理后变小目标, 起到数据补充作用 
+		5. 选用: loss值与面积绝对大小相关的损失函数, 如分割中的dice loss(类似iou概念但难收敛)
+		6. 行人检测中, 远视角行人就成了小目标. 针对性的, 可以加入一些小孩数据, 模拟远视角的成年行人 (与4类似) 
+		7. data-aug上: mixup图像融合, RandomDistort随机亮度/对比度/通道顺序等扰动  
+		8. 保护末层feature map尺寸, 用空洞卷积保证感受野(一定程度缓解多目标重叠)
+
+	多目标重叠/遮挡:
+		1. 少点下采样+空洞卷积 
+		2. 加一些attention, 丰富上下文信息, 使box可联想完整个instance
+		3. data-aug: Mosiac, MixUp等混叠形式的aug
+
+	长尾问题: 难易, 多少   
+		1. 难样本loss加权,挖掘 ohem; focal loss; class_weight加权  (cls分支可尝试)
+		equalization loss: 
+		类别frequency阈值,小于阈值则认为是短类, 就忽略负样本(其他类别正样本)的discouraging gradients,
+		保留背景样本的梯度.   (短类的正太少,其他类的正一来,让短类的正负比严重失衡了.故截断其他类正的梯度.)
+		2. batch内类别均衡采样 
+		3. 探索一些one-shot, zero_shot算法 
+		4. bagging集成学习, 融合各种智慧. (dl,传统, 雷达等信息)
+		5. 根据具体场景, 分析, 归纳, 总结数据特点. (信号灯, 高速随机障碍物等场景. 逐渐攻克!)
+		6. [噪声数据loss选择]: labelsmooth(抑制过拟合+微抗噪)
+		        symmetric cross entropy 对称交叉熵, 有对称性的loss可抗噪
+
+2. TensorRT部署:  
+	1. onnx(含模型结构+参数) -> int8trt引擎  (fp16也可)
+	2. 低精度saveEngine加速. 包含下面几个操作: 
+		1. 算子融合 （层间融合, 层与算子, 算子与算子融合等.）
+		2. 量化(低fp设置int8)
+		3. 内核自动调整: trt源码写好的一些, 根据所用硬件,核数等, 选择最优的计算方式
+		4. 动态张量显存: 一些调整策略, 减少模型的显存开辟释放, 优化时间
+		5. 多流执行: CUDA的并行操作 
+
+3. repvgg   [train时相对resnet有更多的shortcut,inference时参数都融到3x3中]
+	1. gpu上3x3卷积的计算密度(理论运算量/所用时间)可达1x1和5x5卷积的四倍
+	2. 并行度高, 单路架构非常快. 也没残差连接shortcut结构,so显存也很友好
+	3. 单路架构灵活性更好, 易改变各层的宽度(剪枝砍channel)
+	4. repvgg后只剩3x3conv+relu, 可针对性设计芯片. 
+	5. resnet中的identity or 1x1conv, 都可视为8个0一个w的3x3conv 
+4. 匈牙利算法: 
+	1. 最大匹配: 完成多少对两集合连接(ai-bi) dfs搜
+	2. 最小覆盖点数. (不冗余的匹配) 二分图中所有的边都至少有一个点在(覆盖点钟)
+5. 卡尔曼滤波: 如何从多个不确定数据中提取相对精确的数据. 
+6. transformer工程部署 
+	零碎小算子: 
+	1. LayerNorm小算子融合：add bias + layernorm
+	2. 激活函数小算子融合：add bias + relu/gelu
+	3. Softmax小算子融合：add bias + Softmax
+	核心算子:
+	1. QKV GEMM融合, GEMM配置自动选择. 优化gemm部分的计算
+	2. FP32/FP16优化Softmax算子
+7. non local: 
+	1. 相关性矩阵A: 计算每帧中每个像素对其他所有帧所有像素的关系  
+	2. 对A做softmax得到权重
+  	3. self-attention的v和输入一样大,而non-local的v比输入小, so non-local乘完权重后还需做通道扩张
+	4. 可计算任意两个位置间的交互,捕捉远程依赖.  (类似超大核卷积捕抓,远程pixel间的依赖)
+	5. 计算量很大
+
+
+YOLO:
+(yolo系优点: one-stage结构简单部署友好, 正负样本匹配and数据增强做的很好)
+[遍历每个特征图, 一起做正负样本匹配]
+	1. yolo3: 多标签分类(减掉互斥性); anchor init: k-means
+	2. yolo5 正负样本匹配: 
+		1. 计算gt和anchor的宽高比确认是否可匹配; 
+		2. 能配到的gt所处的grid,加上其附近的俩grid,均分配为正样本
+		3. 某anchor配上了多个gt, 选ciou最大的那个为所属gt, 则本anchor相对其他gt就是负样本了
+	3. yolox: 
+		1. simOTA  自动决定每个gt要从哪层特征图来检测(通过iou+cls排序就实现了啊!)
+			1. 收集所有特征层: box中心是否在,以gt中心为中心的某圆范围内.  
+			2. 加权box和gt间的iou和cls-loss, 得到各个box的综合分值
+			3. 确定gt需要的正样本个数: gt的top10iou相加. (某个gt和box的iou都是0.2, 0.2*10=2,需要2个正样本)
+			4. 按照2中的分数, 排序选正负样本即可.  
+		2. 其他改进: 
+			1. 解耦: cls, iou+reg (3~5都是cls+reg+obj一个head出来)
+				p3,4,5几层先1x1卷积降维到256, 再3x3, 再分别做reg, iou 
+			2. 提出: Mosaic, MixUp  (图像马赛克,融合)  直接起到摒弃ImageNet pretrain的作用.
+	4. yolo7: aux head(粗), lead head(细)
+		正负样本分配类似yolox, auxhead的正样本分配更多, lead更少. 
+		aux更关心recall, lead则做精修. 
+	5. Focus: feature map尺寸变小, 转换到channel上. (特征信息量其实没变)
+		H,W,C -> H//2,W//2,4C
+		作用: 无信息丢失下采样. 
+		
+Pythorch
+python
+回归一般用什么loss:
+	1. L1 smooth, L1,L2差在哪?
+		1. L2差在, gt和pred>1时, 平方一下loss太大容易爆炸
+		2. L1 smooth较之L1的优势是: gt和pred的误差以1为分界点, <1则平方(让梯度足够小,慢慢小步优化), >1则L1(绝对值差, 不像L2平方下爆炸).
+	2. IOU loss, GIOU loss等. 直接反应框回归的跟gt咋样关系. 
+

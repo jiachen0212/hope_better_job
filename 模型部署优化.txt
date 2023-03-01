@@ -1,4 +1,24 @@
 # duzi 二面准备知识  但一个没问...
+自驾, 模型部署量化 链接:
+https://zhuanlan.zhihu.com/p/524344248
+https://zhuanlan.zhihu.com/p/36272964
+https://zhuanlan.zhihu.com/p/334363006
+https://zhuanlan.zhihu.com/p/136263753
+https://github.com/halostorm/PCAT_open_source
+https://zhuanlan.zhihu.com/p/150115325
+https://zhuanlan.zhihu.com/p/358220419
+https://zhuanlan.zhihu.com/p/52594900
+https://zhuanlan.zhihu.com/p/597089263
+https://mp.weixin.qq.com/s/uG0nT0mnsY0coKJBpM6e8g
+https://www.zhihu.com/question/411393222
+https://zhuanlan.zhihu.com/p/466169614
+https://zhuanlan.zhihu.com/p/505992733
+https://mp.weixin.qq.com/s?__biz=MzUzNTg4Nzk3Ng==&mid=2247486253&idx=1&sn=113b9bd6b581291457a2cb24765057a3&scene=21#wechat_redirect
+https://zhuanlan.zhihu.com/p/215790047
+https://mp.weixin.qq.com/s/yIzV3wlKghIqoOAlgD8Oig
+https://zhuanlan.zhihu.com/p/38328685
+
+
 paddle开源的部署工具:
 FastDeploy:  cpu gpu 
 	1. 模型压缩比例: 2.x~3.x 
@@ -8,7 +28,7 @@ FastDeploy:  cpu gpu
 		1. 自驾感觉离线好些, 算力全部拿来做推理计算
 		2. 蒸馏得是在线的吧, 在线train
 		3. 离线量化: 权重太小丢弃,权重做scale,对数/线性量化等
-           在线量化: 类混精train, 部分参int8/32训  
+           在线量化: 设计某种policy对模型各层的weights,activations的量化bit位宽进行合理分配
               int的话,得针对不可导的round做拟合(DSQ傅里叶拟合round)
               QuantNoise随机量化部分参数,其他参数正常回传梯度)
 		4. 非结构化稀疏: 
@@ -22,7 +42,7 @@ FastDeploy:  cpu gpu
 
 目标检测中的亮点提升:
     1. cls, reg 解耦
-    2. fpn, pan, 金字塔, 等多head特征融合, 自适应head检各size目标
+    2. fpn, pan(自顶向下+自底向上 融合两次), 金字塔, 等多head特征融合, 自适应head检各size目标
     3. atss, tal 等 正负样本匹配规则 
     4. 针对场景设计的data-aug(如expand)
 
@@ -88,7 +108,7 @@ FastDeploy:  cpu gpu
         (结合场景去解决问题, 没必要什么问题都得攻克)
     3. 行人检测方案补充: 
         1. 人体关键点(姿态检测), 提升遮挡行人检出率
-        2. 卡尔曼滤波: 基于前帧位置预测下一帧位置; 匈牙利算法做匹配实现tracking
+        2. 匈牙利算法做匹配实现tracking + 卡尔曼滤波: 基于前帧位置预测下一帧位置
 
 六、 思谋
     1. 传统视觉算法: 放射变换, 模板匹配, 二值化 做粗定位, 聚类/搜索等 做后处理
@@ -521,4 +541,13 @@ FastDeploy:  cpu gpu
     量化(权重,激活值都int8,少量参数int32): 用PyTorch的FX模块, TinyNeuralNetwork等框架完成量化. https://zhuanlan.zhihu.com/p/38328685
         1. 线性量化 (曲线变锯齿 的感觉)   也会有对数量化.
         2. 权重范围越大,同量化位数下,误差越大.
-        3. 将推理阶段的量化操作迁移到训练阶段  pytorch的混精度训练
+        3. 将推理阶段的量化操作迁移到训练阶段  (设计某种policy,对模型各层的weights,activations的量化bit位宽进行合理分配)
+    混精度量化:  https://zhuanlan.zhihu.com/p/365272572
+        1. 3 5 6 bit混合量化(8bit量化已经基本精度无损)  
+        2. 测量各层/block对量化的敏感度, 基于敏感度分配bit-width(利用一/二阶梯度信息)
+        3. NAS+强化学习 
+    量化推理:  https://zhuanlan.zhihu.com/p/609864024
+        1. weight, bias 对称量化 
+        2. 对已知参数提前计算
+        3. 对Multiplier, Shift做定点计算
+
