@@ -90,7 +90,7 @@
 	5. resnet中的identity or 1x1conv, 都可视为8个0一个w的3x3conv 
 4. 匈牙利算法: 
 	1. 最大匹配: 完成多少对两集合连接(ai-bi) dfs搜
-	2. 最小覆盖点数. (不冗余的匹配) 二分图中所有的边都至少有一个点在(覆盖点钟)
+	2. 最小覆盖点数. (不冗余的匹配) 二分图中所有的边都至少有一个点在(覆盖点中)
 5. 卡尔曼滤波: 如何从多个不确定数据中提取相对精确的数据. 
 6. transformer工程部署 
 	零碎小算子: 
@@ -106,7 +106,6 @@
   	3. self-attention的v和输入一样大,而non-local的v比输入小, so non-local乘完权重后还需做通道扩张
 	4. 可计算任意两个位置间的交互,捕捉远程依赖.  (类似超大核卷积捕抓,远程pixel间的依赖)
 	5. 计算量很大
-
 
 YOLO:
 (yolo系优点: one-stage结构简单部署友好, 正负样本匹配and数据增强做的很好)
@@ -133,11 +132,35 @@ YOLO:
 		H,W,C -> H//2,W//2,4C
 		作用: 无信息丢失下采样. 
 		
-Pythorch
-python
 回归一般用什么loss:
 	1. L1 smooth, L1,L2差在哪?
 		1. L2差在, gt和pred>1时, 平方一下loss太大容易爆炸
 		2. L1 smooth较之L1的优势是: gt和pred的误差以1为分界点, <1则平方(让梯度足够小,慢慢小步优化), >1则L1(绝对值差, 不像L2平方下爆炸).
 	2. IOU loss, GIOU loss等. 直接反应框回归的跟gt咋样关系. 
+
+
+# 2面后补充, 点云, bev, fcos3d, DETR3d等
+点云: 
+	1. x,y,z,颜色,分类值,强度值,时间 等信息 
+	2. 存储格式: pts, LAS, PCD, .xyz, .pcap 
+BEV特征: 易融合时序信息(对运动,遮挡都有辅助作用), 在bev特征中做检测,分割
+	1. BEVFormer: 类2d的transformer-pipline
+		1. BEV queries(HWC)捕获BEV特征(spatial space+tempoal space, 时空信息聚合到BEV query中)
+		2. Temporal Self-Attention, 类rnn中时序前后信息融合. 
+	2. DETR3d: 
+		1. 多视角images -> resnet+fpn
+		2. fc预测在BEV空间中的3D参考点(x,y,z,)sigmoid下, 得到3d box的中心点坐标
+		3. decoder: 
+			1. 每层中所有object query间做self-attention
+ 		   	2. 和图像特征做cross-attention(每个query对应的3D reference point通过相机的内参外参投影到2d坐标,线性插值来采样对应的multi-scale image features. 再sampled image features去更新object queries)
+		  	3. 两个MLP分别做cls和reg
+			4. 匈牙利匹配+cls focal loss + L1 regression loss 
+(19年夏天 momenta还在玩高精地图, 现在就都在搞BEV了~)
+BEV: 鸟瞰图  可结合多模态数据  忽略3d目标的高度 
+BEV感知: 多视角images, 先2d提取features, 然后Transformer下得到3d特征, 2d-3d特征互相成就refine, 涉及3d投影到2d的一些方法.
+最后用3d-decoder得出cls和3d-box.  (基本同DETR3D的pipline)
+bev特征如何得到: 
+1. lss, 估计像素深度, 结合相机内外参投影到bev空间. 
+2. 再就是detr3d了, 如上.
+[ipm对路面平坦要求严格, 根据几何推算深度,2d转到3d]
 
